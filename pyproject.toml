@@ -30,9 +30,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/shauneccles/delonghi-comfort"
-Repository = "https://github.com/shauneccles/delonghi-comfort"
-Issues = "https://github.com/shauneccles/delonghi-comfort/issues"
+Homepage = "https://github.com/comfort-hub/delonghi-comfort"
+Repository = "https://github.com/comfort-hub/delonghi-comfort"
+Issues = "https://github.com/comfort-hub/delonghi-comfort/issues"
 
 [dependency-groups]
 dev = [
