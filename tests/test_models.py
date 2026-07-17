@@ -65,7 +65,6 @@ def test_status_extended_telemetry_fields() -> None:
     """Read-only telemetry fields (power stage, timer, OTA) parse from the shadow."""
     status = MachineStatus.from_reported(
         {
-            "PowerLevel": 255,
             "OnOffTimerMinutes": 30,
             "TimerRemain": 12,
             "TimerStatus": True,
@@ -74,7 +73,6 @@ def test_status_extended_telemetry_fields() -> None:
             "ScheduleEnable": True,
         }
     )
-    assert status.power_level == 255
     assert status.on_off_timer_minutes == 30
     assert status.timer_remaining == 12
     assert status.timer_active is True
@@ -86,7 +84,6 @@ def test_status_extended_telemetry_fields() -> None:
 def test_status_extended_fields_missing() -> None:
     """Missing telemetry fields yield None / False rather than raising."""
     status = MachineStatus.from_reported({})
-    assert status.power_level is None
     assert status.on_off_timer_minutes is None
     assert status.timer_remaining is None
     assert status.timer_active is False
@@ -98,7 +95,6 @@ def test_status_telemetry_rejects_bool_and_garbage() -> None:
     """Booleans (a subclass of int) and other garbage are not coerced to numbers."""
     status = MachineStatus.from_reported(
         {
-            "PowerLevel": True,
             "OnOffTimerMinutes": True,
             "TimerRemain": False,
             "OTAdownloadCompleteness": True,
@@ -106,7 +102,6 @@ def test_status_telemetry_rejects_bool_and_garbage() -> None:
             "TimerStatus": "yes",
         }
     )
-    assert status.power_level is None
     assert status.on_off_timer_minutes is None
     assert status.timer_remaining is None
     assert status.ota_progress is None

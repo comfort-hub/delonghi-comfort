@@ -78,8 +78,10 @@ await client.async_refresh_jwt()      # mint a fresh JWT from the stored session
 | `async_set_schedule_enabled(bool)` | `SetScheduleEnRequest` | `ScheduleEnable` |
 | `async_set_temp_unit(bool)` | `SetTempUnitRequest` | `TempUnit` |
 
-Read-only status telemetry (no control command exists): `power_level`, `on_off_timer_minutes`,
-`timer_remaining`, `timer_active`, `ota_progress`, `running_partition`.
+Read-only status telemetry (no control command exists): `on_off_timer_minutes`,
+`timer_remaining`, `timer_active`, `ota_progress`, `running_partition`. (The shadow's
+`PowerLevel` field is deliberately not surfaced — on real hardware it stays at `255`
+whether idle, in Eco, or at full power, so it carries no usable information.)
 
 ## How it works
 

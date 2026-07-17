@@ -122,11 +122,6 @@ class MachineStatus:
         return str(value) if value else None
 
     @property
-    def power_level(self) -> int | None:
-        """Reported power stage (``PowerLevel``; read-only, 255 when idle/unset)."""
-        return self._get_int("PowerLevel")
-
-    @property
     def on_off_timer_minutes(self) -> int | None:
         """Configured on/off timer duration in minutes (``OnOffTimerMinutes``)."""
         return self._get_int("OnOffTimerMinutes")
