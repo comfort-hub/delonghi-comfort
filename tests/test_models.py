@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from delonghi_comfort import TemperatureUnit
 from delonghi_comfort.models import Device, MachineCapabilities, MachineStatus
 
 _DEVICE = {
@@ -107,6 +108,14 @@ def test_status_telemetry_rejects_bool_and_garbage() -> None:
     assert status.ota_progress is None
     assert status.running_partition is None
     assert status.timer_active is False
+
+
+def test_temperature_unit_property() -> None:
+    """temperature_unit maps the TempUnit flag to the TemperatureUnit enum."""
+    celsius = MachineStatus.from_reported({"TempUnit": True})
+    fahrenheit = MachineStatus.from_reported({"TempUnit": False})
+    assert celsius.temperature_unit is TemperatureUnit.CELSIUS
+    assert fahrenheit.temperature_unit is TemperatureUnit.FAHRENHEIT
 
 
 def test_capabilities() -> None:

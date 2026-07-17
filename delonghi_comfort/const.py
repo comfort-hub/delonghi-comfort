@@ -53,6 +53,17 @@ COMMAND_TIMEOUT: Final = 15.0
 STATUS_TIMEOUT: Final = 15.0
 
 
+class TemperatureUnit(StrEnum):
+    """The heater's display temperature unit.
+
+    Mirrors Home Assistant's ``UnitOfTemperature`` so a consumer can map between
+    the two without this framework-agnostic library importing Home Assistant.
+    """
+
+    CELSIUS = "C"
+    FAHRENHEIT = "F"
+
+
 class Command(StrEnum):
     """`Message` names published to `<thing>/commands/request` to control the heater.
 

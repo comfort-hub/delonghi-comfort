@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .const import TEMP_SCALE
+from .const import TEMP_SCALE, TemperatureUnit
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +114,11 @@ class MachineStatus:
     def celsius(self) -> bool:
         """Whether the display unit is Celsius (``TempUnit``)."""
         return bool(self._get("TempUnit"))
+
+    @property
+    def temperature_unit(self) -> TemperatureUnit:
+        """The display temperature unit (``TempUnit``: ``True`` = Celsius)."""
+        return TemperatureUnit.CELSIUS if self.celsius else TemperatureUnit.FAHRENHEIT
 
     @property
     def lan_ip(self) -> str | None:

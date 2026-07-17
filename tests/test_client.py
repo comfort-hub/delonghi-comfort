@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from delonghi_comfort import TemperatureUnit
 from delonghi_comfort.client import DelonghiComfort
 from delonghi_comfort.exceptions import AuthenticationError
 
@@ -84,9 +85,9 @@ async def test_extended_command_mapping(monkeypatch: pytest.MonkeyPatch) -> None
 
     await client.async_set_schedule_enabled(True)
     # The wire value is inverted vs the reported TempUnit flag (verified on
-    # hardware): Value 0 = Celsius, Value 1 = Fahrenheit.
-    await client.async_set_temp_unit(celsius=True)
-    await client.async_set_temp_unit(celsius=False)
+    # hardware): Celsius = 0, Fahrenheit = 1.
+    await client.async_set_temp_unit(TemperatureUnit.CELSIUS)
+    await client.async_set_temp_unit(TemperatureUnit.FAHRENHEIT)
 
     assert shadow.commands == [
         ("SetScheduleEnRequest", 1),
