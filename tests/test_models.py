@@ -94,6 +94,26 @@ def test_status_extended_fields_missing() -> None:
     assert status.running_partition is None
 
 
+def test_status_telemetry_rejects_bool_and_garbage() -> None:
+    """Booleans (a subclass of int) and other garbage are not coerced to numbers."""
+    status = MachineStatus.from_reported(
+        {
+            "PowerLevel": True,
+            "OnOffTimerMinutes": True,
+            "TimerRemain": False,
+            "OTAdownloadCompleteness": True,
+            "RunningPartition": True,
+            "TimerStatus": "yes",
+        }
+    )
+    assert status.power_level is None
+    assert status.on_off_timer_minutes is None
+    assert status.timer_remaining is None
+    assert status.ota_progress is None
+    assert status.running_partition is None
+    assert status.timer_active is False
+
+
 def test_capabilities() -> None:
     """Capabilities map from the MachineCapabilities shadow."""
     caps = MachineCapabilities.from_reported(
