@@ -83,11 +83,15 @@ async def test_extended_command_mapping(monkeypatch: pytest.MonkeyPatch) -> None
     await client.async_connect("THING")
 
     await client.async_set_schedule_enabled(True)
+    # The wire value is inverted vs the reported TempUnit flag (verified on
+    # hardware): Value 0 = Celsius, Value 1 = Fahrenheit.
+    await client.async_set_temp_unit(celsius=True)
     await client.async_set_temp_unit(celsius=False)
 
     assert shadow.commands == [
         ("SetScheduleEnRequest", 1),
         ("SetTempUnitRequest", 0),
+        ("SetTempUnitRequest", 1),
     ]
 
 

@@ -177,8 +177,13 @@ class DelonghiComfort:
         await self.async_command(Command.SCHEDULE_ENABLE, 1 if on else 0)
 
     async def async_set_temp_unit(self, celsius: bool) -> None:
-        """Set the device display unit (``True`` = Celsius, ``False`` = Fahrenheit)."""
-        await self.async_command(Command.TEMP_UNIT, 1 if celsius else 0)
+        """Set the device display unit (``True`` = Celsius, ``False`` = Fahrenheit).
+
+        The wire value is inverted relative to the reported ``TempUnit`` flag
+        (verified on hardware): the device takes ``0`` for Celsius and ``1`` for
+        Fahrenheit, whereas ``TempUnit`` reports ``True`` for Celsius.
+        """
+        await self.async_command(Command.TEMP_UNIT, 0 if celsius else 1)
 
     async def async_set_brightness(self, level: int) -> None:
         """Set the LED ring brightness (0-3)."""
