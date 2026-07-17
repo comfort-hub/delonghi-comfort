@@ -74,6 +74,15 @@ class GigyaAuth:
                         f"Gigya {path} returned a non-JSON response "
                         f"(HTTP {status}): {body[:200]}"
                     ) from exc
+                if status >= 400:
+                    # Gigya reports its own auth errors as HTTP 200 + an errorCode,
+                    # so a 4xx/5xx here is an infra/gateway failure, not a bad
+                    # credential — surface it as transient rather than mis-parsing
+                    # the body as a successful (errorCode 0) response.
+                    raise TransportError(
+                        f"Gigya {path} failed (HTTP {status}): "
+                        f"{payload.get('errorMessage', payload)}"
+                    )
         except aiohttp.ClientError as exc:
             raise TransportError(f"Gigya request to {path} failed: {exc}") from exc
         return payload

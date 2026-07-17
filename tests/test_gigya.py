@@ -110,6 +110,19 @@ async def test_get_jwt_non_json_body_raises_transport_error() -> None:
         await auth.get_jwt(creds)
 
 
+async def test_login_http_error_status_raises_transport_error() -> None:
+    """A non-2xx status (even with a JSON body) is a TransportError, not a false success."""
+    auth = _auth(
+        {
+            "accounts.login": FakeResponse(
+                status=503, json_data={"errorMessage": "service unavailable"}
+            )
+        }
+    )
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
 # -- #10: a rate-limit is transient, not a bad password -----------------------
 async def test_login_rate_limit_raises_transport_not_auth() -> None:
     """A throttle errorCode is surfaced as TransportError, not AuthenticationError."""
