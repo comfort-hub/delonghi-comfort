@@ -44,6 +44,7 @@ _RECONNECT_DELAY = 5.0
 _ID_ALPHABET = string.ascii_letters + string.digits
 
 ReportedCallback = Callable[[dict[str, Any]], None]
+ErrorCallback = Callable[[Exception], None]
 
 
 def generate_request_id() -> str:
@@ -51,13 +52,15 @@ def generate_request_id() -> str:
     return "".join(secrets.choice(_ID_ALPHABET) for _ in range(5))
 
 
-def build_command_payload(message: str, value: int) -> dict[str, Any]:
+def build_command_payload(
+    message: str, value: int, request_id: str | None = None
+) -> dict[str, Any]:
     """Build the JSON body published to the command/request topic."""
     return {
         "Message": message,
         "AppId": APP_ID,
         "Value": value,
-        "RequestId": generate_request_id(),
+        "RequestId": request_id or generate_request_id(),
     }
 
 
@@ -92,6 +95,7 @@ class ShadowConnection:
         self._pending: dict[str, asyncio.Future[dict[str, Any]]] = {}
         self._get_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
         self._listeners: list[ReportedCallback] = []
+        self._error_listeners: list[ErrorCallback] = []
         self._reported: dict[str, Any] = {}
 
     @property
@@ -110,6 +114,21 @@ class ShadowConnection:
         def _remove() -> None:
             with suppress(ValueError):
                 self._listeners.remove(callback)
+
+        return _remove
+
+    def add_error_listener(self, callback: ErrorCallback) -> Callable[[], None]:
+        """Register a callback invoked when a connection attempt fails.
+
+        This lets a supervisor observe otherwise-silent reconnect failures (e.g.
+        an expired/rejected JWT) and react — for example by minting a fresh token
+        via :meth:`update_jwt` before the next reconnect.
+        """
+        self._error_listeners.append(callback)
+
+        def _remove() -> None:
+            with suppress(ValueError):
+                self._error_listeners.remove(callback)
 
         return _remove
 
@@ -150,12 +169,19 @@ class ShadowConnection:
                     await self._subscribe(client)
                     self._connected.set()
                     async for message in client.messages:
-                        self._dispatch(str(message.topic), message.payload)
+                        try:
+                            self._dispatch(str(message.topic), message.payload)
+                        except Exception:  # noqa: BLE001 - one bad message must not kill the loop
+                            _LOGGER.exception("error dispatching MQTT message")
             except aiomqtt.MqttError as exc:
                 _LOGGER.debug("MQTT connection to %s lost: %s", self._endpoint, exc)
+                self._notify_error(exc)
             finally:
                 self._connected.clear()
                 self._client = None
+                # In-flight requests can never complete on a dropped link; fail
+                # them fast instead of letting callers wait out the full timeout.
+                self._fail_pending(TransportError("connection lost"))
             if not self._stop:
                 await asyncio.sleep(_RECONNECT_DELAY)
 
@@ -196,6 +222,14 @@ class ShadowConnection:
                 self._notify()
             return
 
+        if topic.endswith("get/rejected"):
+            shadow = topic.split("/shadow/name/", 1)[-1].split("/", 1)[0]
+            message = payload.get("message", "shadow get rejected")
+            self._reject_get(
+                shadow, TransportError(f"{shadow} shadow get rejected: {message}")
+            )
+            return
+
         if topic.endswith(f"{SHADOW_STATUS}/update/documents"):
             reported = payload.get("current", {}).get("state", {}).get("reported", {})
             if reported:
@@ -207,10 +241,25 @@ class ShadowConnection:
             if not future.done():
                 future.set_result(reported)
 
+    def _reject_get(self, shadow: str, error: Exception) -> None:
+        for future in self._get_waiters.pop(shadow, []):
+            if not future.done():
+                future.set_exception(error)
+
     def _notify(self) -> None:
         snapshot = dict(self._reported)
         for listener in list(self._listeners):
-            listener(snapshot)
+            try:
+                listener(snapshot)
+            except Exception:  # noqa: BLE001 - a consumer callback must not kill the transport
+                _LOGGER.exception("status listener raised; continuing")
+
+    def _notify_error(self, error: Exception) -> None:
+        for callback in list(self._error_listeners):
+            try:
+                callback(error)
+            except Exception:  # noqa: BLE001 - an error callback must not kill the transport
+                _LOGGER.exception("error listener raised; continuing")
 
     def _fail_pending(self, error: Exception) -> None:
         for future in list(self._pending.values()):
@@ -232,6 +281,22 @@ class ShadowConnection:
             raise TransportError("not connected to the AWS IoT broker")
         return self._client
 
+    def _unique_request_id(self) -> str:
+        """Return a RequestId not currently awaiting an ack (avoids collisions)."""
+        request_id = generate_request_id()
+        while request_id in self._pending:
+            request_id = generate_request_id()
+        return request_id
+
+    def _discard_waiter(
+        self, shadow: str, future: asyncio.Future[dict[str, Any]]
+    ) -> None:
+        waiters = self._get_waiters.get(shadow)
+        if waiters and future in waiters:
+            waiters.remove(future)
+            if not waiters:
+                self._get_waiters.pop(shadow, None)
+
     async def async_get_shadow(self, shadow: str = SHADOW_STATUS) -> dict[str, Any]:
         """Request and return the current ``reported`` state of a named shadow."""
         client = await self._ensure_client()
@@ -239,33 +304,48 @@ class ShadowConnection:
             asyncio.get_running_loop().create_future()
         )
         self._get_waiters.setdefault(shadow, []).append(future)
-        await client.publish(
-            shadow_topic(self._thing, shadow, "get"), payload=b"", qos=1
-        )
         try:
+            try:
+                await client.publish(
+                    shadow_topic(self._thing, shadow, "get"), payload=b"", qos=1
+                )
+            except aiomqtt.MqttError as exc:
+                raise TransportError(
+                    f"failed to request the {shadow} shadow: {exc}"
+                ) from exc
             return await asyncio.wait_for(future, timeout=STATUS_TIMEOUT)
         except TimeoutError as exc:
             raise CommandTimeoutError(
                 f"no response getting the {shadow} shadow"
             ) from exc
+        finally:
+            self._discard_waiter(shadow, future)
 
     async def async_send_command(self, message: str, value: int) -> dict[str, Any]:
         """Publish a command and await the device's ``Response: OK`` acknowledgement."""
         client = await self._ensure_client()
-        payload = build_command_payload(message, value)
-        request_id: str = payload["RequestId"]
+        request_id = self._unique_request_id()
+        payload = build_command_payload(message, value, request_id=request_id)
         future: asyncio.Future[dict[str, Any]] = (
             asyncio.get_running_loop().create_future()
         )
         self._pending[request_id] = future
-        await client.publish(
-            command_request_topic(self._thing), payload=json.dumps(payload), qos=1
-        )
         try:
+            try:
+                await client.publish(
+                    command_request_topic(self._thing),
+                    payload=json.dumps(payload),
+                    qos=1,
+                )
+            except aiomqtt.MqttError as exc:
+                raise TransportError(
+                    f"failed to publish command {message}: {exc}"
+                ) from exc
             response = await asyncio.wait_for(future, timeout=COMMAND_TIMEOUT)
         except TimeoutError as exc:
-            self._pending.pop(request_id, None)
             raise CommandTimeoutError(f"no ack for command {message}") from exc
+        finally:
+            self._pending.pop(request_id, None)
         if response.get("Response") != "OK":
             raise CommandError(
                 f"command {message} rejected: {response.get('Response')}"
