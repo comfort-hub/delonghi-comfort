@@ -75,6 +75,22 @@ async def test_command_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+async def test_extended_command_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Schedule-enable and temp-unit setters map to the right commands."""
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    await client.async_connect("THING")
+
+    await client.async_set_schedule_enabled(True)
+    await client.async_set_temp_unit(celsius=False)
+
+    assert shadow.commands == [
+        ("SetScheduleEnRequest", 1),
+        ("SetTempUnitRequest", 0),
+    ]
+
+
 async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:
     """get_status returns a MachineStatus and listeners receive live updates."""
     shadow = RecordingShadow()

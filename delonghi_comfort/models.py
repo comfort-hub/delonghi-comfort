@@ -111,6 +111,41 @@ class MachineStatus:
         return str(value) if value else None
 
     @property
+    def power_level(self) -> int | None:
+        """Reported power stage (``PowerLevel``; read-only, 255 when idle/unset)."""
+        value = self._get("PowerLevel")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def on_off_timer_minutes(self) -> int | None:
+        """Configured on/off timer duration in minutes (``OnOffTimerMinutes``)."""
+        value = self._get("OnOffTimerMinutes")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def timer_remaining(self) -> int | None:
+        """Minutes left on the running timer (``TimerRemain``)."""
+        value = self._get("TimerRemain")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def timer_active(self) -> bool:
+        """Whether a timer is currently counting down (``TimerStatus``)."""
+        return bool(self._get("TimerStatus"))
+
+    @property
+    def ota_progress(self) -> int | None:
+        """Firmware OTA download progress percent (``OTAdownloadCompleteness``)."""
+        value = self._get("OTAdownloadCompleteness")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
+    def running_partition(self) -> int | None:
+        """Active firmware partition index (``RunningPartition``)."""
+        value = self._get("RunningPartition")
+        return int(value) if isinstance(value, (int, float)) else None
+
+    @property
     def alarms(self) -> dict[str, bool]:
         """The fault-flag map (``alarms``)."""
         value = self._get("alarms")

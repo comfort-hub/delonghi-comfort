@@ -67,6 +67,8 @@ class Command(StrEnum):
     NIGHT_MODE = "SetNightModeRequest"
     BRIGHTNESS = "SetBrightnessLevelRequest"
     SILENT = "SetSoundRequest"
+    SCHEDULE_ENABLE = "SetScheduleEnRequest"
+    TEMP_UNIT = "SetTempUnitRequest"
 
 
 # Command -> the reported MachineStatus field it drives.
@@ -79,6 +81,8 @@ COMMAND_FIELDS: Final[dict[Command, str]] = {
     Command.NIGHT_MODE: "NightModeEnable",
     Command.BRIGHTNESS: "BrightnessLevel",
     Command.SILENT: "SilentEnable",
+    Command.SCHEDULE_ENABLE: "ScheduleEnable",
+    Command.TEMP_UNIT: "TempUnit",
 }
 
 # RoomTemp / PCB temps are reported as tenths of a degree; setpoint is whole degrees.

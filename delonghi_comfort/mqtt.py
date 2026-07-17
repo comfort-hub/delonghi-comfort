@@ -51,8 +51,12 @@ def generate_request_id() -> str:
     return "".join(secrets.choice(_ID_ALPHABET) for _ in range(5))
 
 
-def build_command_payload(message: str, value: int) -> dict[str, Any]:
-    """Build the JSON body published to the command/request topic."""
+def build_command_payload(message: str, value: int | str) -> dict[str, Any]:
+    """Build the JSON body published to the command/request topic.
+
+    ``value`` is usually an ``int`` but may be a ``str`` for commands that carry
+    an encoded payload (e.g. a base64 schedule blob).
+    """
     return {
         "Message": message,
         "AppId": APP_ID,
@@ -249,7 +253,9 @@ class ShadowConnection:
                 f"no response getting the {shadow} shadow"
             ) from exc
 
-    async def async_send_command(self, message: str, value: int) -> dict[str, Any]:
+    async def async_send_command(
+        self, message: str, value: int | str
+    ) -> dict[str, Any]:
         """Publish a command and await the device's ``Response: OK`` acknowledgement."""
         client = await self._ensure_client()
         payload = build_command_payload(message, value)

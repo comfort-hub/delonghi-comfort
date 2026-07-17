@@ -144,7 +144,7 @@ class DelonghiComfort:
         return MachineCapabilities.from_reported(reported)
 
     # -- control -------------------------------------------------------------
-    async def async_command(self, command: Command, value: int) -> None:
+    async def async_command(self, command: Command, value: int | str) -> None:
         """Send an arbitrary command and wait for the device acknowledgement."""
         await self._require_shadow().async_send_command(command.value, value)
 
@@ -171,6 +171,14 @@ class DelonghiComfort:
     async def async_set_silent(self, on: bool) -> None:
         """Enable or disable silent mode."""
         await self.async_command(Command.SILENT, 1 if on else 0)
+
+    async def async_set_schedule_enabled(self, on: bool) -> None:
+        """Enable or disable the device's on-board weekly schedule."""
+        await self.async_command(Command.SCHEDULE_ENABLE, 1 if on else 0)
+
+    async def async_set_temp_unit(self, celsius: bool) -> None:
+        """Set the device display unit (``True`` = Celsius, ``False`` = Fahrenheit)."""
+        await self.async_command(Command.TEMP_UNIT, 1 if celsius else 0)
 
     async def async_set_brightness(self, level: int) -> None:
         """Set the LED ring brightness (0-3)."""

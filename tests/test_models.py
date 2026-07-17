@@ -61,6 +61,39 @@ def test_status_off_and_missing_fields() -> None:
     assert status.alarms == {}
 
 
+def test_status_extended_telemetry_fields() -> None:
+    """Read-only telemetry fields (power stage, timer, OTA) parse from the shadow."""
+    status = MachineStatus.from_reported(
+        {
+            "PowerLevel": 255,
+            "OnOffTimerMinutes": 30,
+            "TimerRemain": 12,
+            "TimerStatus": True,
+            "OTAdownloadCompleteness": 40,
+            "RunningPartition": 1,
+            "ScheduleEnable": True,
+        }
+    )
+    assert status.power_level == 255
+    assert status.on_off_timer_minutes == 30
+    assert status.timer_remaining == 12
+    assert status.timer_active is True
+    assert status.ota_progress == 40
+    assert status.running_partition == 1
+    assert status.schedule_enabled is True
+
+
+def test_status_extended_fields_missing() -> None:
+    """Missing telemetry fields yield None / False rather than raising."""
+    status = MachineStatus.from_reported({})
+    assert status.power_level is None
+    assert status.on_off_timer_minutes is None
+    assert status.timer_remaining is None
+    assert status.timer_active is False
+    assert status.ota_progress is None
+    assert status.running_partition is None
+
+
 def test_capabilities() -> None:
     """Capabilities map from the MachineCapabilities shadow."""
     caps = MachineCapabilities.from_reported(
