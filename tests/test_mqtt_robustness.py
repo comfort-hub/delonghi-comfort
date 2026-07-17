@@ -129,7 +129,9 @@ async def test_get_shadow_publish_failure_wraps_and_cleans() -> None:
 
 
 # -- #7: get waiter must not leak on timeout ----------------------------------
-async def test_get_shadow_timeout_removes_waiter(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_shadow_timeout_removes_waiter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A timed-out get removes its waiter from _get_waiters."""
     monkeypatch.setattr(mqtt, "STATUS_TIMEOUT", 0.05)
     conn = _conn()
@@ -217,6 +219,50 @@ class _Msg:
     def __init__(self, topic: str, payload: bytes) -> None:
         self.topic = topic
         self.payload = payload
+
+
+class _BlockingClient:
+    """A fake client that connects and then blocks until cancelled."""
+
+    def __init__(self, **_: Any) -> None:
+        self.subscribed: list[str] = []
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *_exc: object) -> bool:
+        return False
+
+    async def subscribe(self, topic: str, qos: int = 0) -> None:
+        self.subscribed.append(topic)
+
+    async def publish(self, *_a: Any, **_k: Any) -> None:
+        return None
+
+    @property
+    def messages(self) -> AsyncIterator[Any]:
+        return self._gen()
+
+    async def _gen(self) -> AsyncIterator[Any]:
+        await asyncio.Event().wait()  # block until the runner is cancelled
+        yield  # pragma: no cover - makes this an async generator
+
+
+async def test_stop_fails_pending_with_closed_not_lost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """stop() fails in-flight futures with its own message, not the drop path's."""
+    monkeypatch.setattr(mqtt.aiomqtt, "Client", _BlockingClient)
+    conn = _conn()
+    await conn.start()
+    pending = _future()
+    conn._pending["inflight"] = pending
+
+    await conn.stop()
+
+    assert pending.done()
+    with pytest.raises(TransportError, match="closed"):
+        pending.result()
 
 
 async def test_run_supervisor_reconnects_survives_and_signals(

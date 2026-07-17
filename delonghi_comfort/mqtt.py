@@ -179,9 +179,11 @@ class ShadowConnection:
             finally:
                 self._connected.clear()
                 self._client = None
-                # In-flight requests can never complete on a dropped link; fail
-                # them fast instead of letting callers wait out the full timeout.
-                self._fail_pending(TransportError("connection lost"))
+                # On an *unexpected* drop, in-flight requests can never complete;
+                # fail them fast instead of waiting out the full timeout. When we
+                # are stopping, leave them for stop() to fail with its own message.
+                if not self._stop:
+                    self._fail_pending(TransportError("connection lost"))
             if not self._stop:
                 await asyncio.sleep(_RECONNECT_DELAY)
 
