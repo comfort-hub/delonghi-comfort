@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.0...v0.2.1) (2026-07-18)
+
+
+### Features
+
+* add async_discover for cross-region device discovery ([d9e8d4d](https://github.com/comfort-hub/delonghi-comfort/commit/d9e8d4d6ae15c93698b8b562dc65bb14bb6b0401))
+
 ## [0.2.0](https://github.com/comfort-hub/delonghi-comfort/compare/v0.1.0...v0.2.0) (2026-07-18)
 
 
