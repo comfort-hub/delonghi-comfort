@@ -44,6 +44,9 @@ IOT_ENDPOINTS: Final[dict[str, str]] = {
 IOT_PORT: Final = 443
 IOT_AUTHORIZER: Final = "dlg-prod-token-authorizer"
 
+# Regions to search during discovery (probe order; eu first — most accounts).
+SUPPORTED_REGIONS: Final[tuple[str, ...]] = ("eu", "us")
+
 # Named AWS IoT shadows the device maintains.
 SHADOW_STATUS: Final = "MachineStatus"
 SHADOW_CAPABILITIES: Final = "MachineCapabilities"
