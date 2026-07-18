@@ -159,9 +159,20 @@ class DelonghiComfort:
         """Turn the heater on or off."""
         await self.async_command(Command.POWER, 1 if on else 0)
 
-    async def async_set_temperature(self, celsius: int) -> None:
-        """Set the target temperature in whole degrees Celsius."""
-        await self.async_command(Command.TEMPERATURE_C, int(celsius))
+    async def async_set_temperature(
+        self, value: int, unit: TemperatureUnit = TemperatureUnit.CELSIUS
+    ) -> None:
+        """Set the target temperature in whole degrees of the given display unit.
+
+        The device takes the setpoint in whatever unit it currently displays, via
+        a separate ``SetRoomTempRequest_degC`` / ``SetRoomTempRequest_degF`` command.
+        """
+        command = (
+            Command.TEMPERATURE_C
+            if unit is TemperatureUnit.CELSIUS
+            else Command.TEMPERATURE_F
+        )
+        await self.async_command(command, int(value))
 
     async def async_set_eco(self, on: bool) -> None:
         """Enable or disable Eco (power-limit) mode."""
