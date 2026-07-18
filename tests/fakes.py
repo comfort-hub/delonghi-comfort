@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Self, cast
 
+from delonghi_comfort.const import ConnectionState
+
 if TYPE_CHECKING:
     import aiohttp
 
@@ -80,6 +82,8 @@ class RecordingShadow:
         self.jwt: str | None = None
         self._listeners: list[Any] = []
         self._error_listeners: list[Any] = []
+        self._connection_listeners: list[Any] = []
+        self.connection_state = ConnectionState.DISCONNECTED
 
     def update_jwt(self, jwt: str) -> None:
         self.jwt = jwt
@@ -92,6 +96,10 @@ class RecordingShadow:
         self._error_listeners.append(callback)
         return lambda: None
 
+    def add_connection_listener(self, callback: Any) -> Any:
+        self._connection_listeners.append(callback)
+        return lambda: None
+
     def fire(self, reported: dict[str, Any]) -> None:
         """Simulate the device pushing a reported-state update."""
         for callback in self._listeners:
@@ -101,6 +109,12 @@ class RecordingShadow:
         """Simulate the live connection reporting an error."""
         for callback in self._error_listeners:
             callback(error)
+
+    def fire_connection(self, state: ConnectionState) -> None:
+        """Simulate a live-connection state change."""
+        self.connection_state = state
+        for callback in self._connection_listeners:
+            callback(state)
 
     async def start(self) -> None:
         return None

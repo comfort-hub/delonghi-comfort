@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from delonghi_comfort import Commands, TemperatureUnit
+from delonghi_comfort import Commands, ConnectionState, TemperatureUnit
 from delonghi_comfort.client import DelonghiComfort
 from delonghi_comfort.exceptions import AuthenticationError, TransportError
 
@@ -183,6 +183,27 @@ async def test_error_listener_observes_connection_errors(
     remove()
     shadow.fire_error(TransportError("again"))
     assert len(seen) == 1
+
+
+async def test_connection_listener_tracks_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A connection listener sees state changes and is_connected reflects them."""
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    seen: list[ConnectionState] = []
+    client.add_connection_listener(seen.append)
+
+    before = client.is_connected
+    await client.async_connect("THING")
+    shadow.fire_connection(ConnectionState.CONNECTED)
+    while_connected = client.is_connected
+    shadow.fire_connection(ConnectionState.DISCONNECTED)
+    while_disconnected = client.is_connected
+
+    assert (before, while_connected, while_disconnected) == (False, True, False)
+    assert seen == [ConnectionState.CONNECTED, ConnectionState.DISCONNECTED]
 
 
 async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:

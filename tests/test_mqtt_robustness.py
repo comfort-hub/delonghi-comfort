@@ -15,7 +15,12 @@ import aiomqtt
 import pytest
 
 from delonghi_comfort import mqtt
-from delonghi_comfort.const import SHADOW_STATUS, command_response_topic, shadow_topic
+from delonghi_comfort.const import (
+    SHADOW_STATUS,
+    ConnectionState,
+    command_response_topic,
+    shadow_topic,
+)
 from delonghi_comfort.exceptions import (
     CommandTimeoutError,
     DelonghiComfortError,
@@ -141,6 +146,20 @@ async def test_get_shadow_timeout_removes_waiter(
     with pytest.raises(CommandTimeoutError):
         await conn.async_get_shadow(SHADOW_STATUS)
     assert conn._get_waiters.get(SHADOW_STATUS, []) == []
+
+
+async def test_connection_state_notifies_on_change_only() -> None:
+    """Connection-state changes notify listeners once; unchanged repeats are suppressed."""
+    conn = _conn()
+    seen: list[ConnectionState] = []
+    conn.add_connection_listener(seen.append)
+
+    conn._set_connection_state(ConnectionState.CONNECTED)
+    conn._set_connection_state(ConnectionState.CONNECTED)  # no change -> no notify
+    conn._set_connection_state(ConnectionState.DISCONNECTED)
+
+    assert seen == [ConnectionState.CONNECTED, ConnectionState.DISCONNECTED]
+    assert conn.connection_state is ConnectionState.DISCONNECTED
 
 
 async def test_send_command_timeout_cleans_pending(
