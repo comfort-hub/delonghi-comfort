@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 StatusListener = Callable[[MachineStatus], None]
+ErrorListener = Callable[[Exception], None]
 
 
 class DelonghiComfort:
@@ -61,6 +62,7 @@ class DelonghiComfort:
         self._jwt: str | None = None
         self._shadow: ShadowConnection | None = None
         self._listeners: list[StatusListener] = []
+        self._error_listeners: list[ErrorListener] = []
 
     # -- authentication ------------------------------------------------------
     @property
@@ -113,6 +115,7 @@ class DelonghiComfort:
             endpoint=IOT_ENDPOINTS[self._region],
         )
         self._shadow.add_listener(self._on_reported)
+        self._shadow.add_error_listener(self._on_error)
         await self._shadow.start()
 
     async def async_close(self) -> None:
@@ -139,6 +142,29 @@ class DelonghiComfort:
                 listener(status)
             except Exception:  # noqa: BLE001 - a consumer callback must not stop others
                 _LOGGER.exception("status listener raised; continuing")
+
+    def add_error_listener(self, callback: ErrorListener) -> Callable[[], None]:
+        """Register a callback invoked when the live connection reports an error.
+
+        The MQTT supervisor reconnects automatically, but on a persistent failure
+        (e.g. an expired JWT) it would otherwise loop silently. An error listener
+        makes that observable so a consumer can recover — call
+        :meth:`async_refresh_jwt` to re-mint the token, or trigger reauthentication.
+        """
+        self._error_listeners.append(callback)
+
+        def _remove() -> None:
+            with suppress(ValueError):
+                self._error_listeners.remove(callback)
+
+        return _remove
+
+    def _on_error(self, error: Exception) -> None:
+        for listener in list(self._error_listeners):
+            try:
+                listener(error)
+            except Exception:  # noqa: BLE001 - a consumer callback must not stop others
+                _LOGGER.exception("error listener raised; continuing")
 
     # -- state read ----------------------------------------------------------
     async def async_get_status(self) -> MachineStatus:
