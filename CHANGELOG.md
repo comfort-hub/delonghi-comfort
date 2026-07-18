@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.3...v0.3.0) (2026-07-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* Command is a generic dataclass not a StrEnum; constants moved to Commands; COMMAND_FIELDS removed.
+
+### Features
+
+* type commands with a generic Command[T] and value encoders ([0b65a4a](https://github.com/comfort-hub/delonghi-comfort/commit/0b65a4ae177a2dfd9baf3e58d2ba5e24c33377be))
+
 ## [0.2.3](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.2...v0.2.3) (2026-07-18)
 
 
