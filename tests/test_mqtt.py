@@ -44,6 +44,12 @@ def test_build_command_payload() -> None:
     assert len(payload["RequestId"]) == 5
 
 
+def test_build_command_payload_accepts_string_value() -> None:
+    """String Values are carried verbatim (e.g. a base64 schedule blob)."""
+    payload = build_command_payload("SetScheduleSetPointsRequest", "AAAB")
+    assert payload["Value"] == "AAAB"
+
+
 async def test_dispatch_resolves_command_future() -> None:
     """A command/response with a matching RequestId resolves the pending future."""
     conn = _conn()

@@ -53,6 +53,17 @@ COMMAND_TIMEOUT: Final = 15.0
 STATUS_TIMEOUT: Final = 15.0
 
 
+class TemperatureUnit(StrEnum):
+    """The heater's display temperature unit.
+
+    Mirrors Home Assistant's ``UnitOfTemperature`` so a consumer can map between
+    the two without this framework-agnostic library importing Home Assistant.
+    """
+
+    CELSIUS = "C"
+    FAHRENHEIT = "F"
+
+
 class Command(StrEnum):
     """`Message` names published to `<thing>/commands/request` to control the heater.
 
@@ -67,6 +78,8 @@ class Command(StrEnum):
     NIGHT_MODE = "SetNightModeRequest"
     BRIGHTNESS = "SetBrightnessLevelRequest"
     SILENT = "SetSoundRequest"
+    SCHEDULE_ENABLE = "SetScheduleEnRequest"
+    TEMP_UNIT = "SetTempUnitRequest"
 
 
 # Command -> the reported MachineStatus field it drives.
@@ -79,6 +92,8 @@ COMMAND_FIELDS: Final[dict[Command, str]] = {
     Command.NIGHT_MODE: "NightModeEnable",
     Command.BRIGHTNESS: "BrightnessLevel",
     Command.SILENT: "SilentEnable",
+    Command.SCHEDULE_ENABLE: "ScheduleEnable",
+    Command.TEMP_UNIT: "TempUnit",
 }
 
 # RoomTemp / PCB temps are reported as tenths of a degree; setpoint is whole degrees.

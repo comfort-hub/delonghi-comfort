@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .const import TEMP_SCALE
+from .const import TEMP_SCALE, TemperatureUnit
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +50,17 @@ class MachineStatus:
 
     def _get(self, key: str) -> Any:
         return self.raw.get(key)
+
+    def _get_int(self, key: str) -> int | None:
+        """Coerce a numeric field to int, treating bool/garbage as missing.
+
+        ``bool`` is a subclass of ``int``, so a stray ``True``/``False`` in the
+        shadow must be rejected rather than silently reported as ``1``/``0``.
+        """
+        value = self._get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return int(value)
 
     @property
     def is_on(self) -> bool:
@@ -105,10 +116,45 @@ class MachineStatus:
         return bool(self._get("TempUnit"))
 
     @property
+    def temperature_unit(self) -> TemperatureUnit:
+        """The display temperature unit (``TempUnit``: ``True`` = Celsius)."""
+        return TemperatureUnit.CELSIUS if self.celsius else TemperatureUnit.FAHRENHEIT
+
+    @property
     def lan_ip(self) -> str | None:
         """The heater's LAN IP as it reports it (``LanIpAddress``)."""
         value = self._get("LanIpAddress")
         return str(value) if value else None
+
+    @property
+    def on_off_timer_minutes(self) -> int | None:
+        """Configured on/off timer duration in minutes (``OnOffTimerMinutes``)."""
+        return self._get_int("OnOffTimerMinutes")
+
+    @property
+    def timer_remaining(self) -> int | None:
+        """Minutes left on the running timer (``TimerRemain``)."""
+        return self._get_int("TimerRemain")
+
+    @property
+    def timer_active(self) -> bool:
+        """Whether a timer is currently counting down (``TimerStatus``)."""
+        value = self._get("TimerStatus")
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        return False
+
+    @property
+    def ota_progress(self) -> int | None:
+        """Firmware OTA download progress percent (``OTAdownloadCompleteness``)."""
+        return self._get_int("OTAdownloadCompleteness")
+
+    @property
+    def running_partition(self) -> int | None:
+        """Active firmware partition index (``RunningPartition``)."""
+        return self._get_int("RunningPartition")
 
     @property
     def alarms(self) -> dict[str, bool]:

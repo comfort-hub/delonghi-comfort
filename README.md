@@ -75,6 +75,13 @@ await client.async_refresh_jwt()      # mint a fresh JWT from the stored session
 | `async_set_night_mode(bool)` | `SetNightModeRequest` | `NightModeEnable` |
 | `async_set_silent(bool)` | `SetSoundRequest` | `SilentEnable` |
 | `async_set_brightness(0-3)` | `SetBrightnessLevelRequest` | `BrightnessLevel` |
+| `async_set_schedule_enabled(bool)` | `SetScheduleEnRequest` | `ScheduleEnable` |
+| `async_set_temp_unit(TemperatureUnit)` | `SetTempUnitRequest` | `TempUnit` |
+
+Read-only status telemetry (no control command exists): `on_off_timer_minutes`,
+`timer_remaining`, `timer_active`, `ota_progress`, `running_partition`. (The shadow's
+`PowerLevel` field is deliberately not surfaced — on real hardware it stays at `255`
+whether idle, in Eco, or at full power, so it carries no usable information.)
 
 ## How it works
 

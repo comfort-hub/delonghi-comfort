@@ -53,9 +53,13 @@ def generate_request_id() -> str:
 
 
 def build_command_payload(
-    message: str, value: int, request_id: str | None = None
+    message: str, value: int | str, request_id: str | None = None
 ) -> dict[str, Any]:
-    """Build the JSON body published to the command/request topic."""
+    """Build the JSON body published to the command/request topic.
+
+    ``value`` is usually an ``int`` but may be a ``str`` for commands that carry
+    an encoded payload (e.g. a base64 schedule blob).
+    """
     return {
         "Message": message,
         "AppId": APP_ID,
@@ -323,7 +327,9 @@ class ShadowConnection:
         finally:
             self._discard_waiter(shadow, future)
 
-    async def async_send_command(self, message: str, value: int) -> dict[str, Any]:
+    async def async_send_command(
+        self, message: str, value: int | str
+    ) -> dict[str, Any]:
         """Publish a command and await the device's ``Response: OK`` acknowledgement."""
         client = await self._ensure_client()
         request_id = self._unique_request_id()

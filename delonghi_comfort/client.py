@@ -26,6 +26,7 @@ from .const import (
     SHADOW_CAPABILITIES,
     SHADOW_STATUS,
     Command,
+    TemperatureUnit,
 )
 from .exceptions import AuthenticationError, DelonghiComfortError
 from .gigya import GigyaAuth, GigyaCredentials
@@ -150,7 +151,7 @@ class DelonghiComfort:
         return MachineCapabilities.from_reported(reported)
 
     # -- control -------------------------------------------------------------
-    async def async_command(self, command: Command, value: int) -> None:
+    async def async_command(self, command: Command, value: int | str) -> None:
         """Send an arbitrary command and wait for the device acknowledgement."""
         await self._require_shadow().async_send_command(command.value, value)
 
@@ -177,6 +178,20 @@ class DelonghiComfort:
     async def async_set_silent(self, on: bool) -> None:
         """Enable or disable silent mode."""
         await self.async_command(Command.SILENT, 1 if on else 0)
+
+    async def async_set_schedule_enabled(self, on: bool) -> None:
+        """Enable or disable the device's on-board weekly schedule."""
+        await self.async_command(Command.SCHEDULE_ENABLE, 1 if on else 0)
+
+    async def async_set_temp_unit(self, unit: TemperatureUnit) -> None:
+        """Set the heater's display temperature unit.
+
+        The wire value is inverted relative to the reported ``TempUnit`` flag
+        (verified on hardware): the device takes ``0`` for Celsius and ``1`` for
+        Fahrenheit, whereas ``TempUnit`` reports ``True`` for Celsius.
+        """
+        value = 0 if unit is TemperatureUnit.CELSIUS else 1
+        await self.async_command(Command.TEMP_UNIT, value)
 
     async def async_set_brightness(self, level: int) -> None:
         """Set the LED ring brightness (0-3)."""

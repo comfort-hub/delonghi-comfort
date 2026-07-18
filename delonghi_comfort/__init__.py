@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .client import DelonghiComfort
-from .const import Command
+from .const import Command, TemperatureUnit
 from .exceptions import (
     AuthenticationError,
     CommandError,
@@ -25,5 +25,6 @@ __all__ = [
     "GigyaCredentials",
     "MachineCapabilities",
     "MachineStatus",
+    "TemperatureUnit",
     "TransportError",
 ]
