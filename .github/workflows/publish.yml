@@ -1,43 +1,88 @@
-name: Publish to PyPI
-
+name: release
 on:
-  release:
-    types: [published]
-
-permissions:
-  contents: read
-
+  push:
+    branches: [main]
+permissions: {}
 jobs:
-  build:
+  # Runs with a short-lived GitHub App token (comfort-hub-release), NOT the
+  # workflow's GITHUB_TOKEN: events created by GITHUB_TOKEN never trigger other
+  # workflows, which would leave release PRs with no CI runs. App-token pushes
+  # trigger the normal pull_request checks, so release PRs get validated.
+  release-please:
     runs-on: ubuntu-latest
+    permissions: {} # the app token carries the write authority
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      pr: ${{ steps.rp.outputs.pr }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
         with:
-          fetch-depth: 0 # hatch-vcs derives the version from git tags
-      - uses: astral-sh/setup-uv@v6
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          permission-contents: write # push release branch, create tag + release
+          permission-pull-requests: write # open/update the release PR
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
-          enable-cache: true
-      - name: Build distributions
-        run: uv build
-      - name: Upload distributions
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-dists
-          path: dist/
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-  pypi-publish:
-    needs: build
+  # release-please bumps pyproject.toml but cannot regenerate uv.lock — refresh
+  # the lock on the release branch so it never drifts from the released version.
+  # The push uses the app token so the release PR's HEAD commit still gets CI
+  # (required checks evaluate the head commit).
+  sync-lock:
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write # mandatory for PyPI trusted publishing
+    permissions: {} # the app token carries the write authority
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          permission-contents: write # push the refreshed lock to the release branch
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0 # zizmor: ignore[artipacked] -- job must push the refreshed lock back
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+      - name: Refresh uv.lock for the release version
+        run: |
+          uv lock
+          if ! git diff --quiet -- uv.lock; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: refresh uv.lock for release" -- uv.lock
+            git push
+          fi
+
+  # Publishes to PyPI via trusted publishing (OIDC) ONLY when release-please cut a
+  # release in this same run — sidesteps the GITHUB_TOKEN recursion guard, so no PAT.
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/project/delonghi-comfort/
+    permissions:
+      id-token: write # OIDC for PyPI trusted publishing
+      contents: read
     steps:
-      - name: Retrieve distributions
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          name: release-dists
-          path: dist/
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: false # release artifact must not depend on a (poisonable) cache
+      - name: Build sdist + wheel
+        run: uv build
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0

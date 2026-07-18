@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
@@ -11,7 +11,8 @@ license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Shaun Eccles-Smith", email = "shauneccles@gmail.com" }]
 keywords = ["delonghi", "comfort", "heater", "home-assistant", "aws-iot", "daedalus"]
-dynamic = ["version"]
+# Bumped by release-please (release-please-config.json); do not edit by hand.
+version = "0.1.0"
 dependencies = [
     "aiohttp>=3.9",
     "aiomqtt>=2.0",
@@ -42,13 +43,6 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.12.0",
 ]
-
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.version.raw-options]
-# Never fail a build when the repo has no tags yet (e.g. fresh checkout / CI without history).
-fallback_version = "0.0.0"
 
 [tool.hatch.build.targets.wheel]
 packages = ["delonghi_comfort"]

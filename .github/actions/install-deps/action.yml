@@ -11,9 +11,11 @@ runs:
 
     - name: Set up Python
       shell: bash
+      # --locked: fail if the committed uv.lock has drifted from pyproject.toml
+      # (rather than silently updating it), so a stale lock never reaches main.
       run: |
-        echo "PYTHON_VERSION=$(uv run python -c 'import platform; print(platform.python_version())')" >> "$GITHUB_ENV"
+        echo "PYTHON_VERSION=$(uv run --locked python -c 'import platform; print(platform.python_version())')" >> "$GITHUB_ENV"
 
     - name: Install dependencies with uv
       shell: bash
-      run: uv sync
+      run: uv sync --locked
