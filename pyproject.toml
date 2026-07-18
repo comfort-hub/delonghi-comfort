@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Shaun Eccles-Smith", email = "shauneccles@gmail.com" }]
 keywords = ["delonghi", "comfort", "heater", "home-assistant", "aws-iot", "daedalus"]
 # Bumped by release-please (release-please-config.json); do not edit by hand.
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
     "aiohttp>=3.9",
     "aiomqtt>=2.0",
