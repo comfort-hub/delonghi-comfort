@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .client import DelonghiComfort
-from .const import SUPPORTED_REGIONS, Command, TemperatureUnit
+from .const import SUPPORTED_REGIONS, Command, Commands, TemperatureUnit
 from .discovery import DiscoveredDevice, async_discover
 from .exceptions import (
     AuthenticationError,
@@ -20,6 +20,7 @@ __all__ = [
     "Command",
     "CommandError",
     "CommandTimeoutError",
+    "Commands",
     "DelonghiComfort",
     "DelonghiComfortError",
     "Device",
