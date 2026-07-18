@@ -31,6 +31,7 @@ from .const import (
     SHADOW_CAPABILITIES,
     SHADOW_STATUS,
     STATUS_TIMEOUT,
+    ConnectionState,
     command_request_topic,
     command_response_topic,
     shadow_topic,
@@ -45,6 +46,7 @@ _ID_ALPHABET = string.ascii_letters + string.digits
 
 ReportedCallback = Callable[[dict[str, Any]], None]
 ErrorCallback = Callable[[Exception], None]
+ConnectionCallback = Callable[[ConnectionState], None]
 
 
 def generate_request_id() -> str:
@@ -100,6 +102,8 @@ class ShadowConnection:
         self._get_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
         self._listeners: list[ReportedCallback] = []
         self._error_listeners: list[ErrorCallback] = []
+        self._connection_listeners: list[ConnectionCallback] = []
+        self._connection_state = ConnectionState.DISCONNECTED
         self._reported: dict[str, Any] = {}
 
     @property
@@ -135,6 +139,23 @@ class ShadowConnection:
                 self._error_listeners.remove(callback)
 
         return _remove
+
+    def add_connection_listener(
+        self, callback: ConnectionCallback
+    ) -> Callable[[], None]:
+        """Register a callback invoked whenever the connection state changes."""
+        self._connection_listeners.append(callback)
+
+        def _remove() -> None:
+            with suppress(ValueError):
+                self._connection_listeners.remove(callback)
+
+        return _remove
+
+    @property
+    def connection_state(self) -> ConnectionState:
+        """The current live-connection state."""
+        return self._connection_state
 
     async def start(self) -> None:
         """Open the connection and wait until the first successful connect."""
@@ -172,6 +193,7 @@ class ShadowConnection:
                     self._client = client
                     await self._subscribe(client)
                     self._connected.set()
+                    self._set_connection_state(ConnectionState.CONNECTED)
                     async for message in client.messages:
                         try:
                             self._dispatch(str(message.topic), message.payload)
@@ -182,6 +204,7 @@ class ShadowConnection:
                 self._notify_error(exc)
             finally:
                 self._connected.clear()
+                self._set_connection_state(ConnectionState.DISCONNECTED)
                 self._client = None
                 # On an *unexpected* drop, in-flight requests can never complete;
                 # fail them fast instead of waiting out the full timeout. When we
@@ -266,6 +289,16 @@ class ShadowConnection:
                 callback(error)
             except Exception:  # noqa: BLE001 - an error callback must not kill the transport
                 _LOGGER.exception("error listener raised; continuing")
+
+    def _set_connection_state(self, state: ConnectionState) -> None:
+        if state == self._connection_state:
+            return
+        self._connection_state = state
+        for callback in list(self._connection_listeners):
+            try:
+                callback(state)
+            except Exception:  # noqa: BLE001 - a callback must not kill the transport
+                _LOGGER.exception("connection listener raised; continuing")
 
     def _fail_pending(self, error: Exception) -> None:
         for future in list(self._pending.values()):

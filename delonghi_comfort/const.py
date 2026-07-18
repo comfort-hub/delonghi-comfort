@@ -71,6 +71,13 @@ class TemperatureUnit(StrEnum):
     FAHRENHEIT = "F"
 
 
+class ConnectionState(StrEnum):
+    """The live MQTT connection's status."""
+
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+
+
 @dataclass(frozen=True, slots=True)
 class Command[T]:
     """A device command, typed by the value it accepts.

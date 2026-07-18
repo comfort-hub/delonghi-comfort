@@ -27,6 +27,7 @@ from .const import (
     SHADOW_STATUS,
     Command,
     Commands,
+    ConnectionState,
     TemperatureUnit,
 )
 from .exceptions import AuthenticationError, DelonghiComfortError
@@ -42,6 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 
 StatusListener = Callable[[MachineStatus], None]
 ErrorListener = Callable[[Exception], None]
+ConnectionListener = Callable[[ConnectionState], None]
 
 
 class DelonghiComfort:
@@ -63,6 +65,7 @@ class DelonghiComfort:
         self._shadow: ShadowConnection | None = None
         self._listeners: list[StatusListener] = []
         self._error_listeners: list[ErrorListener] = []
+        self._connection_listeners: list[ConnectionListener] = []
 
     # -- authentication ------------------------------------------------------
     @property
@@ -116,6 +119,7 @@ class DelonghiComfort:
         )
         self._shadow.add_listener(self._on_reported)
         self._shadow.add_error_listener(self._on_error)
+        self._shadow.add_connection_listener(self._on_connection)
         await self._shadow.start()
 
     async def async_close(self) -> None:
@@ -165,6 +169,43 @@ class DelonghiComfort:
                 listener(error)
             except Exception:  # noqa: BLE001 - a consumer callback must not stop others
                 _LOGGER.exception("error listener raised; continuing")
+
+    def add_connection_listener(
+        self, callback: ConnectionListener
+    ) -> Callable[[], None]:
+        """Register a callback invoked whenever the live-connection state changes.
+
+        The callback receives a :class:`ConnectionState`; the current value is also
+        available via :attr:`connection_state` / :attr:`is_connected`.
+        """
+        self._connection_listeners.append(callback)
+
+        def _remove() -> None:
+            with suppress(ValueError):
+                self._connection_listeners.remove(callback)
+
+        return _remove
+
+    def _on_connection(self, state: ConnectionState) -> None:
+        for listener in list(self._connection_listeners):
+            try:
+                listener(state)
+            except Exception:  # noqa: BLE001 - a consumer callback must not stop others
+                _LOGGER.exception("connection listener raised; continuing")
+
+    @property
+    def connection_state(self) -> ConnectionState:
+        """The current live-connection state (disconnected before connecting)."""
+        return (
+            self._shadow.connection_state
+            if self._shadow is not None
+            else ConnectionState.DISCONNECTED
+        )
+
+    @property
+    def is_connected(self) -> bool:
+        """Whether the live MQTT connection is currently up."""
+        return self.connection_state is ConnectionState.CONNECTED
 
     # -- state read ----------------------------------------------------------
     async def async_get_status(self) -> MachineStatus:
