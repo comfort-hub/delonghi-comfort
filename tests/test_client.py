@@ -9,7 +9,7 @@ import pytest
 
 from delonghi_comfort import Commands, TemperatureUnit
 from delonghi_comfort.client import DelonghiComfort
-from delonghi_comfort.exceptions import AuthenticationError
+from delonghi_comfort.exceptions import AuthenticationError, TransportError
 
 from .fakes import FakeResponse, RecordingShadow, make_session
 
@@ -160,6 +160,29 @@ async def test_async_command_encodes_typed_values(
         ("SetTempUnitRequest", 1),
         ("SetTMZoneRequest", "Europe/London"),
     ]
+
+
+async def test_error_listener_observes_connection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observe live-connection failures through an error listener.
+
+    Failures (e.g. an expired-JWT reconnect) reach the listener instead of
+    looping silently; removing the listener stops delivery.
+    """
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    seen: list[Exception] = []
+    remove = client.add_error_listener(seen.append)
+    await client.async_connect("THING")
+
+    shadow.fire_error(TransportError("connection lost"))
+    assert [type(err) for err in seen] == [TransportError]
+
+    remove()
+    shadow.fire_error(TransportError("again"))
+    assert len(seen) == 1
 
 
 async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:

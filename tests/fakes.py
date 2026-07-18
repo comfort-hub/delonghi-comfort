@@ -79,6 +79,7 @@ class RecordingShadow:
         self.commands: list[tuple[str, int | str]] = []
         self.jwt: str | None = None
         self._listeners: list[Any] = []
+        self._error_listeners: list[Any] = []
 
     def update_jwt(self, jwt: str) -> None:
         self.jwt = jwt
@@ -87,10 +88,19 @@ class RecordingShadow:
         self._listeners.append(callback)
         return lambda: None
 
+    def add_error_listener(self, callback: Any) -> Any:
+        self._error_listeners.append(callback)
+        return lambda: None
+
     def fire(self, reported: dict[str, Any]) -> None:
         """Simulate the device pushing a reported-state update."""
         for callback in self._listeners:
             callback(reported)
+
+    def fire_error(self, error: Exception) -> None:
+        """Simulate the live connection reporting an error."""
+        for callback in self._error_listeners:
+            callback(error)
 
     async def start(self) -> None:
         return None
