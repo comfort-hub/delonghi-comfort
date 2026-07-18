@@ -123,6 +123,61 @@ async def test_login_http_error_status_raises_transport_error() -> None:
         await auth.login("me@example.com", "pw")
 
 
+class _SequenceResponse(FakeResponse):
+    """A response that returns a different JSON payload on each successive call."""
+
+    def __init__(self, payloads: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self._payloads = payloads
+        self._index = 0
+
+    async def json(self, content_type: str | None = None) -> Any:
+        payload = self._payloads[min(self._index, len(self._payloads) - 1)]
+        self._index += 1
+        return payload
+
+
+async def test_login_probes_until_a_pool_succeeds() -> None:
+    """A wrong-pool response is skipped and the next pool's session is returned."""
+    auth = _auth(
+        {
+            "accounts.login": _SequenceResponse(
+                [
+                    {"errorCode": 400093},
+                    {
+                        "errorCode": 0,
+                        "sessionInfo": {
+                            "sessionToken": "st",
+                            "sessionSecret": _SECRET,
+                        },
+                    },
+                ]
+            )
+        }
+    )
+    credentials = await auth.login("me@example.com", "pw")
+    assert credentials.session_token == "st"
+
+
+async def test_login_empty_session_exhausts_pools() -> None:
+    """A success code with no session token is not accepted and login fails."""
+    auth = _auth(
+        {"accounts.login": FakeResponse(json_data={"errorCode": 0, "sessionInfo": {}})}
+    )
+    with pytest.raises(AuthenticationError):
+        await auth.login("me@example.com", "pw")
+
+
+async def test_get_jwt_missing_id_token_raises() -> None:
+    """GetJWT without an id_token raises AuthenticationError."""
+    credentials = GigyaCredentials(
+        api_key="4_x", session_token="st", session_secret=_SECRET
+    )
+    auth = _auth({"accounts.getJWT": FakeResponse(json_data={"errorMessage": "nope"})})
+    with pytest.raises(AuthenticationError):
+        await auth.get_jwt(credentials)
+
+
 # -- #10: a rate-limit is transient, not a bad password -----------------------
 async def test_login_rate_limit_raises_transport_not_auth() -> None:
     """A throttle errorCode is surfaced as TransportError, not AuthenticationError."""

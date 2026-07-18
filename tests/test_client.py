@@ -114,6 +114,32 @@ async def test_set_temperature_unit_selects_command(
     ]
 
 
+async def test_set_timezone_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    """async_set_timezone sends SetTMZoneRequest with the identifier as-is."""
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    await client.async_connect("THING")
+
+    await client.async_set_timezone("Europe/London")
+
+    assert shadow.commands == [("SetTMZoneRequest", "Europe/London")]
+
+
+async def test_refresh_jwt_rotates_live_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refreshing the JWT propagates the new token to the live shadow connection."""
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    await client.async_connect("THING")
+
+    await client.async_refresh_jwt()
+
+    assert shadow.jwt == "jwt-token"
+
+
 async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:
     """get_status returns a MachineStatus and listeners receive live updates."""
     shadow = RecordingShadow()
