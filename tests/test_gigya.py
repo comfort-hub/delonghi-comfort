@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import base64
+import json
+from typing import Any
 
 import pytest
 
-from delonghi_comfort.exceptions import AuthenticationError
+from delonghi_comfort.exceptions import AuthenticationError, TransportError
 from delonghi_comfort.gigya import GigyaAuth, GigyaCredentials, _sign
 
 from .fakes import FakeResponse, make_session
 
 _SECRET = base64.b64encode(b"a-shared-secret").decode()
+
+
+class _NonJsonResponse(FakeResponse):
+    """A response whose body is not JSON (e.g. a gateway HTML error page)."""
+
+    async def json(self, content_type: str | None = None) -> Any:
+        raise json.JSONDecodeError("Expecting value", self._text or "<html>", 0)
 
 
 def _auth(routes: dict[str, FakeResponse]) -> GigyaAuth:
@@ -77,3 +86,55 @@ async def test_get_jwt() -> None:
     auth = _auth({"accounts.getJWT": FakeResponse(json_data={"id_token": "a.b.c"})})
     creds = GigyaCredentials(api_key="4_x", session_token="st", session_secret=_SECRET)
     assert await auth.get_jwt(creds) == "a.b.c"
+
+
+# -- #9: a non-JSON body (gateway/CDN error page) must not crash with ValueError
+async def test_login_non_json_body_raises_transport_error() -> None:
+    """A 502 HTML body raises TransportError, not a raw JSONDecodeError."""
+    auth = _auth(
+        {
+            "accounts.login": _NonJsonResponse(
+                status=502, text_data="<html>Bad Gateway</html>"
+            )
+        }
+    )
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
+async def test_get_jwt_non_json_body_raises_transport_error() -> None:
+    """A non-JSON getJWT response raises TransportError, not a raw ValueError."""
+    auth = _auth({"accounts.getJWT": _NonJsonResponse(status=500, text_data="oops")})
+    creds = GigyaCredentials(api_key="4_x", session_token="st", session_secret=_SECRET)
+    with pytest.raises(TransportError):
+        await auth.get_jwt(creds)
+
+
+async def test_login_http_error_status_raises_transport_error() -> None:
+    """A non-2xx status (even with a JSON body) is a TransportError, not a false success."""
+    auth = _auth(
+        {
+            "accounts.login": FakeResponse(
+                status=503, json_data={"errorMessage": "service unavailable"}
+            )
+        }
+    )
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
+# -- #10: a rate-limit is transient, not a bad password -----------------------
+async def test_login_rate_limit_raises_transport_not_auth() -> None:
+    """A throttle errorCode is surfaced as TransportError, not AuthenticationError."""
+    auth = _auth(
+        {
+            "accounts.login": FakeResponse(
+                json_data={
+                    "errorCode": 403048,
+                    "errorMessage": "API rate limit exceeded",
+                }
+            )
+        }
+    )
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")

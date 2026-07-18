@@ -24,6 +24,9 @@ from .exceptions import AuthenticationError, TransportError
 # Gigya errorCode returned when an account is not on the probed pool.
 _WRONG_POOL_CODE = 400093
 
+# Transient throttle errorCodes: retryable, and NOT a bad-credential signal.
+_RATE_LIMIT_CODES = frozenset({403048, 403120})
+
 
 @dataclass(frozen=True, slots=True)
 class GigyaCredentials:
@@ -62,7 +65,24 @@ class GigyaAuth:
                 data=urlencode(params).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             ) as response:
-                payload: dict[str, Any] = await response.json(content_type=None)
+                status = response.status
+                try:
+                    payload: dict[str, Any] = await response.json(content_type=None)
+                except ValueError as exc:
+                    body = await response.text()
+                    raise TransportError(
+                        f"Gigya {path} returned a non-JSON response "
+                        f"(HTTP {status}): {body[:200]}"
+                    ) from exc
+                if status >= 400:
+                    # Gigya reports its own auth errors as HTTP 200 + an errorCode,
+                    # so a 4xx/5xx here is an infra/gateway failure, not a bad
+                    # credential — surface it as transient rather than mis-parsing
+                    # the body as a successful (errorCode 0) response.
+                    raise TransportError(
+                        f"Gigya {path} failed (HTTP {status}): "
+                        f"{payload.get('errorMessage', payload)}"
+                    )
         except aiohttp.ClientError as exc:
             raise TransportError(f"Gigya request to {path} failed: {exc}") from exc
         return payload
@@ -94,8 +114,14 @@ class GigyaAuth:
             elif error_code == _WRONG_POOL_CODE:
                 last_error = f"pool {pool}: wrong pool"
                 continue
+            elif error_code in _RATE_LIMIT_CODES:
+                # Transient throttle: retryable, and not a credential problem.
+                raise TransportError(
+                    f"Gigya rate-limited login (error {error_code}): "
+                    f"{payload.get('errorMessage', 'try again later')}"
+                )
             else:
-                # A definite error (bad password, rate-limit): stop probing.
+                # A definite credential error (e.g. bad password): stop probing.
                 raise AuthenticationError(
                     f"Gigya error {error_code}: {payload.get('errorMessage', 'unknown')}"
                 )
