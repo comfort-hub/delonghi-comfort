@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.0...v0.3.1) (2026-07-18)
+
+
+### Bug Fixes
+
+* expose add_error_listener on the client ([#3](https://github.com/comfort-hub/delonghi-comfort/issues/3)) ([56b595e](https://github.com/comfort-hub/delonghi-comfort/commit/56b595e6120a26e4428b3aa873b31bb87558f6ef))
+
 ## [0.3.0](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.3...v0.3.0) (2026-07-18)
 
 
