@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.2...v0.2.3) (2026-07-18)
+
+
+### Features
+
+* add timezone (TMZone) setter and fill test-coverage gaps ([#11](https://github.com/comfort-hub/delonghi-comfort/issues/11), [#13](https://github.com/comfort-hub/delonghi-comfort/issues/13)) ([e1f149c](https://github.com/comfort-hub/delonghi-comfort/commit/e1f149cbf58f7fbffd88c8d6f8bcc24ea72f25cb))
+
 ## [0.2.2](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.1...v0.2.2) (2026-07-18)
 
 
