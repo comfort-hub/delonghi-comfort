@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import suppress
+import logging
 from typing import TYPE_CHECKING
 
 from .const import (
@@ -34,6 +35,8 @@ from .rest import async_get_devices
 
 if TYPE_CHECKING:
     import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
 
 StatusListener = Callable[[MachineStatus], None]
 
@@ -130,7 +133,10 @@ class DelonghiComfort:
     def _on_reported(self, reported: dict[str, object]) -> None:
         status = MachineStatus.from_reported(dict(reported))
         for listener in list(self._listeners):
-            listener(status)
+            try:
+                listener(status)
+            except Exception:  # noqa: BLE001 - a consumer callback must not stop others
+                _LOGGER.exception("status listener raised; continuing")
 
     # -- state read ----------------------------------------------------------
     async def async_get_status(self) -> MachineStatus:
