@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.1...v0.3.2) (2026-07-18)
+
+
+### Features
+
+* expose typed connection-state events ([a85a0cb](https://github.com/comfort-hub/delonghi-comfort/commit/a85a0cb5500ae7cfeee9df7355102371d5f96735))
+
 ## [0.3.1](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.0...v0.3.1) (2026-07-18)
 
 
