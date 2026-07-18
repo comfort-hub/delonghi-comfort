@@ -143,6 +143,20 @@ async def test_get_shadow_timeout_removes_waiter(
     assert conn._get_waiters.get(SHADOW_STATUS, []) == []
 
 
+async def test_send_command_timeout_cleans_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timed-out command raises CommandTimeoutError and clears its pending future."""
+    monkeypatch.setattr(mqtt, "COMMAND_TIMEOUT", 0.05)
+    conn = _conn()
+    conn._client = cast("aiomqtt.Client", FakeMqttClient())
+    conn._connected.set()
+
+    with pytest.raises(CommandTimeoutError):
+        await conn.async_send_command("SetDeviceStatusRequest", 1)
+    assert conn._pending == {}
+
+
 # -- #8: RequestId collision must not orphan an in-flight command -------------
 async def test_send_command_regenerates_on_requestid_collision(
     monkeypatch: pytest.MonkeyPatch,

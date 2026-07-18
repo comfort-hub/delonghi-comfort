@@ -83,6 +83,7 @@ class Command(StrEnum):
     SILENT = "SetSoundRequest"
     SCHEDULE_ENABLE = "SetScheduleEnRequest"
     TEMP_UNIT = "SetTempUnitRequest"
+    TMZONE = "SetTMZoneRequest"
 
 
 # Command -> the reported MachineStatus field it drives.
@@ -97,6 +98,7 @@ COMMAND_FIELDS: Final[dict[Command, str]] = {
     Command.SILENT: "SilentEnable",
     Command.SCHEDULE_ENABLE: "ScheduleEnable",
     Command.TEMP_UNIT: "TempUnit",
+    Command.TMZONE: "TMZone",
 }
 
 # RoomTemp / PCB temps are reported as tenths of a degree; setpoint is whole degrees.

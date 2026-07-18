@@ -204,6 +204,15 @@ class DelonghiComfort:
         value = 0 if unit is TemperatureUnit.CELSIUS else 1
         await self.async_command(Command.TEMP_UNIT, value)
 
+    async def async_set_timezone(self, timezone: int | str) -> None:
+        """Set the device's timezone (``SetTMZoneRequest``).
+
+        ``timezone`` is the device's timezone identifier as used by the vendor
+        app's timezone picker; its exact encoding is device-defined and has not
+        been verified on hardware, so it is passed through as-is.
+        """
+        await self.async_command(Command.TMZONE, timezone)
+
     async def async_set_brightness(self, level: int) -> None:
         """Set the LED ring brightness (0-3)."""
         if not BRIGHTNESS_MIN <= level <= BRIGHTNESS_MAX:

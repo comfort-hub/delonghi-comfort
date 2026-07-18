@@ -76,7 +76,7 @@ class RecordingShadow:
     """Stand-in for ShadowConnection: records commands and can fire listeners."""
 
     def __init__(self) -> None:
-        self.commands: list[tuple[str, int]] = []
+        self.commands: list[tuple[str, int | str]] = []
         self.jwt: str | None = None
         self._listeners: list[Any] = []
 
@@ -98,7 +98,9 @@ class RecordingShadow:
     async def stop(self) -> None:
         return None
 
-    async def async_send_command(self, message: str, value: int) -> dict[str, Any]:
+    async def async_send_command(
+        self, message: str, value: int | str
+    ) -> dict[str, Any]:
         self.commands.append((message, value))
         return {"Message": message, "Response": "OK", "Value": value}
 
