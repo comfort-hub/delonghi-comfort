@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.1...v0.2.2) (2026-07-18)
+
+
+### Features
+
+* add a unit argument to async_set_temperature ([56fe789](https://github.com/comfort-hub/delonghi-comfort/commit/56fe789126b108094d966ab8ca2054d9627e0611))
+
 ## [0.2.1](https://github.com/comfort-hub/delonghi-comfort/compare/v0.2.0...v0.2.1) (2026-07-18)
 
 
