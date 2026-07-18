@@ -26,6 +26,7 @@ from .const import (
     SHADOW_CAPABILITIES,
     SHADOW_STATUS,
     Command,
+    Commands,
     TemperatureUnit,
 )
 from .exceptions import AuthenticationError, DelonghiComfortError
@@ -151,13 +152,20 @@ class DelonghiComfort:
         return MachineCapabilities.from_reported(reported)
 
     # -- control -------------------------------------------------------------
-    async def async_command(self, command: Command, value: int | str) -> None:
-        """Send an arbitrary command and wait for the device acknowledgement."""
-        await self._require_shadow().async_send_command(command.value, value)
+    async def async_command[T](self, command: Command[T], value: T) -> None:
+        """Send a typed command and wait for the device acknowledgement.
+
+        The command's value type is enforced statically: e.g. ``Commands.POWER``
+        takes a ``bool`` and ``Commands.BRIGHTNESS`` takes an ``int``. The command
+        encodes ``value`` onto the wire.
+        """
+        await self._require_shadow().async_send_command(
+            command.message, command.encode(value)
+        )
 
     async def async_set_power(self, on: bool) -> None:
         """Turn the heater on or off."""
-        await self.async_command(Command.POWER, 1 if on else 0)
+        await self.async_command(Commands.POWER, on)
 
     async def async_set_temperature(
         self, value: int, unit: TemperatureUnit = TemperatureUnit.CELSIUS
@@ -168,41 +176,35 @@ class DelonghiComfort:
         a separate ``SetRoomTempRequest_degC`` / ``SetRoomTempRequest_degF`` command.
         """
         command = (
-            Command.TEMPERATURE_C
+            Commands.TEMPERATURE_C
             if unit is TemperatureUnit.CELSIUS
-            else Command.TEMPERATURE_F
+            else Commands.TEMPERATURE_F
         )
         await self.async_command(command, int(value))
 
     async def async_set_eco(self, on: bool) -> None:
         """Enable or disable Eco (power-limit) mode."""
-        await self.async_command(Command.ECO, 1 if on else 0)
+        await self.async_command(Commands.ECO, on)
 
     async def async_set_child_lock(self, on: bool) -> None:
         """Enable or disable the child lock."""
-        await self.async_command(Command.CHILD_LOCK, 1 if on else 0)
+        await self.async_command(Commands.CHILD_LOCK, on)
 
     async def async_set_night_mode(self, on: bool) -> None:
         """Enable or disable night mode."""
-        await self.async_command(Command.NIGHT_MODE, 1 if on else 0)
+        await self.async_command(Commands.NIGHT_MODE, on)
 
     async def async_set_silent(self, on: bool) -> None:
         """Enable or disable silent mode."""
-        await self.async_command(Command.SILENT, 1 if on else 0)
+        await self.async_command(Commands.SILENT, on)
 
     async def async_set_schedule_enabled(self, on: bool) -> None:
         """Enable or disable the device's on-board weekly schedule."""
-        await self.async_command(Command.SCHEDULE_ENABLE, 1 if on else 0)
+        await self.async_command(Commands.SCHEDULE_ENABLE, on)
 
     async def async_set_temp_unit(self, unit: TemperatureUnit) -> None:
-        """Set the heater's display temperature unit.
-
-        The wire value is inverted relative to the reported ``TempUnit`` flag
-        (verified on hardware): the device takes ``0`` for Celsius and ``1`` for
-        Fahrenheit, whereas ``TempUnit`` reports ``True`` for Celsius.
-        """
-        value = 0 if unit is TemperatureUnit.CELSIUS else 1
-        await self.async_command(Command.TEMP_UNIT, value)
+        """Set the heater's display temperature unit (encoded 0 = C, 1 = F)."""
+        await self.async_command(Commands.TEMP_UNIT, unit)
 
     async def async_set_timezone(self, timezone: int | str) -> None:
         """Set the device's timezone (``SetTMZoneRequest``).
@@ -211,10 +213,10 @@ class DelonghiComfort:
         app's timezone picker; its exact encoding is device-defined and has not
         been verified on hardware, so it is passed through as-is.
         """
-        await self.async_command(Command.TMZONE, timezone)
+        await self.async_command(Commands.TMZONE, timezone)
 
     async def async_set_brightness(self, level: int) -> None:
         """Set the LED ring brightness (0-3)."""
         if not BRIGHTNESS_MIN <= level <= BRIGHTNESS_MAX:
             raise ValueError(f"brightness must be {BRIGHTNESS_MIN}-{BRIGHTNESS_MAX}")
-        await self.async_command(Command.BRIGHTNESS, level)
+        await self.async_command(Commands.BRIGHTNESS, level)

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from delonghi_comfort import TemperatureUnit
+from delonghi_comfort import Commands, TemperatureUnit
 from delonghi_comfort.client import DelonghiComfort
 from delonghi_comfort.exceptions import AuthenticationError
 
@@ -138,6 +138,28 @@ async def test_refresh_jwt_rotates_live_connection(
     await client.async_refresh_jwt()
 
     assert shadow.jwt == "jwt-token"
+
+
+async def test_async_command_encodes_typed_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """async_command encodes each command's typed value onto the wire."""
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    await client.async_connect("THING")
+
+    await client.async_command(Commands.POWER, True)
+    await client.async_command(Commands.BRIGHTNESS, 2)
+    await client.async_command(Commands.TEMP_UNIT, TemperatureUnit.FAHRENHEIT)
+    await client.async_command(Commands.TMZONE, "Europe/London")
+
+    assert shadow.commands == [
+        ("SetDeviceStatusRequest", 1),
+        ("SetBrightnessLevelRequest", 2),
+        ("SetTempUnitRequest", 1),
+        ("SetTMZoneRequest", "Europe/London"),
+    ]
 
 
 async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:
