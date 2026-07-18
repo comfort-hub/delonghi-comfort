@@ -96,6 +96,24 @@ async def test_extended_command_mapping(monkeypatch: pytest.MonkeyPatch) -> None
     ]
 
 
+async def test_set_temperature_unit_selects_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """async_set_temperature picks the degC/degF command from the unit."""
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    await client.async_connect("THING")
+
+    await client.async_set_temperature(22)  # defaults to Celsius
+    await client.async_set_temperature(72, unit=TemperatureUnit.FAHRENHEIT)
+
+    assert shadow.commands == [
+        ("SetRoomTempRequest_degC", 22),
+        ("SetRoomTempRequest_degF", 72),
+    ]
+
+
 async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:
     """get_status returns a MachineStatus and listeners receive live updates."""
     shadow = RecordingShadow()
