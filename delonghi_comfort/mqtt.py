@@ -228,6 +228,10 @@ class ShadowConnection:
                 self._connected.clear()
                 self._set_connection_state(ConnectionState.DISCONNECTED)
                 self._client = None
+                # Forget the version so the reconnect's shadow get always
+                # re-baselines reported state, even if the shadow was re-created
+                # with a lower version while we were disconnected.
+                self._version = None
                 # On an *unexpected* drop, in-flight requests can never complete;
                 # fail them fast instead of waiting out the full timeout. When we
                 # are stopping, leave them for stop() to fail with its own message.
