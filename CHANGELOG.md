@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.4...v0.3.5) (2026-07-19)
+
+
+### Bug Fixes
+
+* reset shadow version on disconnect so reconnects re-baseline ([#36](https://github.com/comfort-hub/delonghi-comfort/issues/36)) ([af77c42](https://github.com/comfort-hub/delonghi-comfort/commit/af77c4252c7da3bd910ad0cb2a16259daddef736))
+
 ## [0.3.4](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.3...v0.3.4) (2026-07-19)
 
 
