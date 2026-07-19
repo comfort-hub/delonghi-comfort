@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.5...v0.3.6) (2026-07-19)
+
+
+### Features
+
+* retry transient cloud failures and build TLS off the event loop ([#38](https://github.com/comfort-hub/delonghi-comfort/issues/38)) ([be8f61a](https://github.com/comfort-hub/delonghi-comfort/commit/be8f61a360293b56afc6a0416d6eea42546659cc))
+
 ## [0.3.5](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.4...v0.3.5) (2026-07-19)
 
 
