@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.2...v0.3.3) (2026-07-19)
+
+
+### Features
+
+* refresh shadow on reconnect and expose report-time staleness ([#32](https://github.com/comfort-hub/delonghi-comfort/issues/32)) ([03bd352](https://github.com/comfort-hub/delonghi-comfort/commit/03bd352992f790b232a07139bfadc5e22c858778))
+
 ## [0.3.2](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.1...v0.3.2) (2026-07-18)
 
 
