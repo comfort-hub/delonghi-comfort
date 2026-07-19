@@ -80,6 +80,7 @@ class RecordingShadow:
     def __init__(self) -> None:
         self.commands: list[tuple[str, int | str]] = []
         self.jwt: str | None = None
+        self.reported_metadata: dict[str, Any] = {}
         self._listeners: list[Any] = []
         self._error_listeners: list[Any] = []
         self._connection_listeners: list[Any] = []

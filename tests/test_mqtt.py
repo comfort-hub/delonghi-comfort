@@ -93,6 +93,40 @@ async def test_dispatch_merges_update_documents() -> None:
     assert conn.reported["TempSetPoint"] == 22  # preserved
 
 
+async def test_dispatch_captures_and_merges_status_metadata() -> None:
+    """get/accepted replaces reported metadata; update/documents merges it."""
+    conn = _conn()
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps(
+            {
+                "state": {"reported": {"DeviceStatus": 0, "RoomTemp": 200}},
+                "metadata": {
+                    "reported": {
+                        "DeviceStatus": {"timestamp": 100},
+                        "RoomTemp": {"timestamp": 100},
+                    }
+                },
+            }
+        ),
+    )
+    assert conn.reported_metadata["RoomTemp"] == {"timestamp": 100}
+
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "update/documents"),
+        json.dumps(
+            {
+                "current": {
+                    "state": {"reported": {"DeviceStatus": 1}},
+                    "metadata": {"reported": {"DeviceStatus": {"timestamp": 200}}},
+                }
+            }
+        ),
+    )
+    assert conn.reported_metadata["DeviceStatus"] == {"timestamp": 200}
+    assert conn.reported_metadata["RoomTemp"] == {"timestamp": 100}  # preserved
+
+
 async def test_send_command_awaits_ok_response() -> None:
     """async_send_command publishes and resolves when an OK reply arrives."""
     conn = _conn()

@@ -220,6 +220,7 @@ class _ScriptedClient:
         self._conn = conn
         self._msg = msg
         self.subscribed: list[str] = []
+        self.published: list[tuple[str, Any]] = []
         self.index = len(_ScriptedClient.instances)
         _ScriptedClient.instances.append(self)
 
@@ -232,8 +233,8 @@ class _ScriptedClient:
     async def subscribe(self, topic: str, qos: int = 0) -> None:
         self.subscribed.append(topic)
 
-    async def publish(self, *_a: Any, **_k: Any) -> None:
-        return None
+    async def publish(self, topic: str, payload: Any = None, qos: int = 0) -> None:
+        self.published.append((topic, payload))
 
     @property
     def messages(self) -> AsyncIterator[Any]:
@@ -342,3 +343,34 @@ async def test_run_supervisor_reconnects_survives_and_signals(
     assert pending.done()
     with pytest.raises(TransportError):
         pending.result()
+
+
+async def test_run_re_requests_status_shadow_on_each_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every (re)connect re-requests the status shadow so state is re-baselined.
+
+    A reconnected session otherwise keeps the last merged reported state and only
+    updates when the device next pushes; re-issuing a shadow ``get`` closes that
+    gap (the "sustained stale reading" bug).
+    """
+    monkeypatch.setattr(mqtt, "_RECONNECT_DELAY", 0.0)
+    _ScriptedClient.instances = []
+
+    conn = _conn()
+    msg = _Msg(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"DeviceStatus": 1}}}).encode(),
+    )
+    monkeypatch.setattr(
+        mqtt.aiomqtt, "Client", lambda **kw: _ScriptedClient(conn, msg, **kw)
+    )
+
+    await conn.start()
+    await asyncio.wait_for(conn._runner, timeout=3.0)  # type: ignore[arg-type]
+
+    get_topic = shadow_topic(THING, SHADOW_STATUS, "get")
+    assert len(_ScriptedClient.instances) >= 2
+    # Each connection published a status-shadow get after (re)connecting.
+    for client in _ScriptedClient.instances:
+        assert any(topic == get_topic for topic, _ in client.published)

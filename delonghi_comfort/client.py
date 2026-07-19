@@ -140,7 +140,8 @@ class DelonghiComfort:
         return _remove
 
     def _on_reported(self, reported: dict[str, object]) -> None:
-        status = MachineStatus.from_reported(dict(reported))
+        metadata = self._shadow.reported_metadata if self._shadow is not None else {}
+        status = MachineStatus.from_reported(dict(reported), metadata=metadata)
         for listener in list(self._listeners):
             try:
                 listener(status)
@@ -210,8 +211,9 @@ class DelonghiComfort:
     # -- state read ----------------------------------------------------------
     async def async_get_status(self) -> MachineStatus:
         """Fetch the current ``MachineStatus`` shadow."""
-        reported = await self._require_shadow().async_get_shadow(SHADOW_STATUS)
-        return MachineStatus.from_reported(reported)
+        shadow = self._require_shadow()
+        reported = await shadow.async_get_shadow(SHADOW_STATUS)
+        return MachineStatus.from_reported(reported, metadata=shadow.reported_metadata)
 
     async def async_get_capabilities(self) -> MachineCapabilities:
         """Fetch the static ``MachineCapabilities`` shadow."""

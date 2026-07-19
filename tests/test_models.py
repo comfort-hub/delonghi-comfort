@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from delonghi_comfort import TemperatureUnit
 from delonghi_comfort.models import Device, MachineCapabilities, MachineStatus
 
@@ -116,6 +118,40 @@ def test_temperature_unit_property() -> None:
     fahrenheit = MachineStatus.from_reported({"TempUnit": False})
     assert celsius.temperature_unit is TemperatureUnit.CELSIUS
     assert fahrenheit.temperature_unit is TemperatureUnit.FAHRENHEIT
+
+
+def test_status_reported_at_from_metadata() -> None:
+    """reported_at exposes each field's device timestamp; last_reported_at is newest."""
+    older = 1_700_000_000
+    newer = older + 600
+    status = MachineStatus.from_reported(
+        {"RoomTemp": 200, "DeviceStatus": 1},
+        metadata={
+            "RoomTemp": {"timestamp": older},
+            "DeviceStatus": {"timestamp": newer},
+        },
+    )
+    assert status.reported_at("RoomTemp") == datetime.fromtimestamp(older, tz=UTC)
+    assert status.last_reported_at == datetime.fromtimestamp(newer, tz=UTC)
+
+
+def test_status_metadata_absent_or_garbage_yields_none() -> None:
+    """Missing / malformed metadata yields None from the accessors, never raises."""
+    no_meta = MachineStatus.from_reported({"RoomTemp": 200})
+    assert no_meta.reported_at("RoomTemp") is None
+    assert no_meta.last_reported_at is None
+
+    # A field present without a numeric timestamp, and nested (alarm) metadata
+    # without a top-level timestamp, must be ignored rather than break newest-of.
+    garbage = MachineStatus.from_reported(
+        {"RoomTemp": 200},
+        metadata={
+            "RoomTemp": {"timestamp": "nope"},
+            "alarms": {"TOS_alarm": {"timestamp": 1_700_000_000}},
+        },
+    )
+    assert garbage.reported_at("RoomTemp") is None
+    assert garbage.last_reported_at is None
 
 
 def test_capabilities() -> None:

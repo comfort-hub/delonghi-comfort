@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -223,6 +224,26 @@ async def test_status_and_listener(monkeypatch: pytest.MonkeyPatch) -> None:
     shadow.fire({"DeviceStatus": 0, "TempSetPoint": 19})
     assert seen[-1].is_on is False
     assert seen[-1].target_temperature == 19
+
+
+async def test_status_carries_reported_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Polled and pushed statuses carry the shadow's report-time metadata."""
+    shadow = RecordingShadow()
+    shadow.reported_metadata = {"RoomTemp": {"timestamp": 1_700_000_000}}
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+    seen: list[MachineStatus] = []
+    client.add_status_listener(seen.append)
+    await client.async_connect("THING")
+
+    expected = datetime.fromtimestamp(1_700_000_000, tz=UTC)
+    status = await client.async_get_status()
+    assert status.last_reported_at == expected
+
+    shadow.fire({"DeviceStatus": 0})
+    assert seen[-1].last_reported_at == expected
 
 
 async def test_brightness_out_of_range() -> None:
