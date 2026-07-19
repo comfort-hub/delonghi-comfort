@@ -374,3 +374,28 @@ async def test_run_re_requests_status_shadow_on_each_connect(
     # Each connection published a status-shadow get after (re)connecting.
     for client in _ScriptedClient.instances:
         assert any(topic == get_topic for topic, _ in client.published)
+
+
+async def test_run_resets_version_on_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dropped connection clears the tracked shadow version so a reconnect re-baselines."""
+    monkeypatch.setattr(mqtt, "_RECONNECT_DELAY", 0.0)
+    _ScriptedClient.instances = []
+
+    conn = _conn()
+    msg = _Msg(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"RoomTemp": 200}}, "version": 5}).encode(),
+    )
+    monkeypatch.setattr(
+        mqtt.aiomqtt, "Client", lambda **kw: _ScriptedClient(conn, msg, **kw)
+    )
+
+    await conn.start()
+    await asyncio.wait_for(conn._runner, timeout=3.0)  # type: ignore[arg-type]
+
+    # The get/accepted applied version 5; each drop then cleared it, so a
+    # re-created (lower-versioned) shadow can never stay gated as "stale".
+    assert conn.reported_version is None
+    assert conn.reported["RoomTemp"] == 200  # cached value persists for the reconnect
