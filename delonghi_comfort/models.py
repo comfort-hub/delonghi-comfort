@@ -3,9 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from .const import TEMP_SCALE, TemperatureUnit
+
+
+def _metadata_timestamp(entry: Any) -> datetime | None:
+    """Extract a UTC datetime from a shadow-metadata entry's epoch ``timestamp``.
+
+    AWS IoT records each reported field's last-update time under
+    ``metadata.reported.<field>.timestamp`` (epoch seconds). Anything else — a
+    missing/non-numeric timestamp, or a nested (structured-field) entry that has no
+    top-level timestamp — yields ``None`` rather than raising.
+    """
+    if not isinstance(entry, dict):
+        return None
+    ts = entry.get("timestamp")
+    if isinstance(ts, bool) or not isinstance(ts, (int, float)):
+        return None
+    return datetime.fromtimestamp(ts, tz=UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,11 +59,38 @@ class MachineStatus:
     """
 
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
+    metadata: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
-    def from_reported(cls, reported: dict[str, Any]) -> MachineStatus:
-        """Build a status snapshot from a shadow ``state.reported`` dict."""
-        return cls(raw=dict(reported))
+    def from_reported(
+        cls, reported: dict[str, Any], metadata: dict[str, Any] | None = None
+    ) -> MachineStatus:
+        """Build a status snapshot from a shadow ``state.reported`` dict.
+
+        ``metadata`` is the shadow's ``metadata.reported`` sub-document (per-field
+        ``{"timestamp": <epoch seconds>}`` entries). It records how fresh each
+        reported value is — see :meth:`reported_at` / :attr:`last_reported_at`.
+        """
+        return cls(raw=dict(reported), metadata=dict(metadata or {}))
+
+    def reported_at(self, key: str) -> datetime | None:
+        """When the device last reported ``key`` (from shadow metadata), or ``None``."""
+        return _metadata_timestamp(self.metadata.get(key))
+
+    @property
+    def last_reported_at(self) -> datetime | None:
+        """The most recent per-field report time across the shadow, or ``None``.
+
+        This is how fresh the shadow document is overall: an old value means the
+        device has not reported for a while (e.g. it is switched off), so consumers
+        can flag the reading as stale rather than trust it.
+        """
+        stamps = [
+            ts
+            for ts in (_metadata_timestamp(entry) for entry in self.metadata.values())
+            if ts is not None
+        ]
+        return max(stamps) if stamps else None
 
     def _get(self, key: str) -> Any:
         return self.raw.get(key)

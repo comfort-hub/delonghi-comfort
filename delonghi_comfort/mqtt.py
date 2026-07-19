@@ -105,11 +105,21 @@ class ShadowConnection:
         self._connection_listeners: list[ConnectionCallback] = []
         self._connection_state = ConnectionState.DISCONNECTED
         self._reported: dict[str, Any] = {}
+        self._reported_metadata: dict[str, Any] = {}
 
     @property
     def reported(self) -> dict[str, Any]:
         """The most recent merged ``MachineStatus`` reported state."""
         return dict(self._reported)
+
+    @property
+    def reported_metadata(self) -> dict[str, Any]:
+        """The ``metadata.reported`` document for the merged reported state.
+
+        Per-field ``{"timestamp": <epoch seconds>}`` entries recording when the
+        device last reported each value — used to detect staleness.
+        """
+        return dict(self._reported_metadata)
 
     def update_jwt(self, jwt: str) -> None:
         """Replace the JWT used on the next (re)connect."""
@@ -194,6 +204,7 @@ class ShadowConnection:
                     await self._subscribe(client)
                     self._connected.set()
                     self._set_connection_state(ConnectionState.CONNECTED)
+                    await self._request_status_refresh(client)
                     async for message in client.messages:
                         try:
                             self._dispatch(str(message.topic), message.payload)
@@ -213,6 +224,20 @@ class ShadowConnection:
                     self._fail_pending(TransportError("connection lost"))
             if not self._stop:
                 await asyncio.sleep(_RECONNECT_DELAY)
+
+    async def _request_status_refresh(self, client: aiomqtt.Client) -> None:
+        """Re-request the status shadow so a (re)connect re-baselines reported state.
+
+        A reconnected session keeps the last merged ``reported`` state but receives
+        no fresh data until the device next pushes an update — which can be many
+        minutes, or hours while the heater is off. Publishing a shadow ``get`` makes
+        the broker resend the current document, so ``reported`` is refreshed on every
+        (re)connection instead of drifting stale (the "sustained stale reading" bug).
+        """
+        _LOGGER.debug("requesting %s shadow refresh after connect", SHADOW_STATUS)
+        await client.publish(
+            shadow_topic(self._thing, SHADOW_STATUS, "get"), payload=b"", qos=1
+        )
 
     async def _subscribe(self, client: aiomqtt.Client) -> None:
         topics = [
@@ -248,6 +273,14 @@ class ShadowConnection:
             self._resolve_get(shadow, reported)
             if shadow == SHADOW_STATUS:
                 self._reported = dict(reported)
+                self._reported_metadata = dict(
+                    payload.get("metadata", {}).get("reported", {})
+                )
+                _LOGGER.debug(
+                    "status get/accepted: version=%s keys=%s",
+                    payload.get("version"),
+                    sorted(reported),
+                )
                 self._notify()
             return
 
@@ -260,9 +293,18 @@ class ShadowConnection:
             return
 
         if topic.endswith(f"{SHADOW_STATUS}/update/documents"):
-            reported = payload.get("current", {}).get("state", {}).get("reported", {})
+            current = payload.get("current", {})
+            reported = current.get("state", {}).get("reported", {})
             if reported:
                 self._reported.update(reported)
+                self._reported_metadata.update(
+                    current.get("metadata", {}).get("reported", {})
+                )
+                _LOGGER.debug(
+                    "status update/documents: version=%s changed=%s",
+                    current.get("version"),
+                    sorted(reported),
+                )
                 self._notify()
 
     def _resolve_get(self, shadow: str, reported: dict[str, Any]) -> None:
