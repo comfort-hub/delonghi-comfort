@@ -60,7 +60,9 @@ async def async_discover(
     last_error: TransportError | None = None
     for region in SUPPORTED_REGIONS:
         try:
-            devices = await async_get_devices(session, jwt, region)
+            # Fail fast per region: a rejected region should move on to the next,
+            # not spend the transient-retry budget.
+            devices = await async_get_devices(session, jwt, region, retries=1)
         except TransportError as err:
             _LOGGER.debug("discovery: skipping region %s: %s", region, err)
             last_error = err

@@ -14,6 +14,7 @@ Typical use::
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 import logging
@@ -33,7 +34,7 @@ from .const import (
 from .exceptions import AuthenticationError, DelonghiComfortError
 from .gigya import GigyaAuth, GigyaCredentials
 from .models import Device, MachineCapabilities, MachineStatus
-from .mqtt import ShadowConnection
+from .mqtt import ShadowConnection, alpn_mqtt_context
 from .rest import async_get_devices
 
 if TYPE_CHECKING:
@@ -112,10 +113,16 @@ class DelonghiComfort:
     async def async_connect(self, device: Device | str) -> None:
         """Open the MQTT shadow/command connection for a device (or thing name)."""
         thing = device.thing_name if isinstance(device, Device) else device
+        # Building the TLS context loads system certs (blocking I/O). Do it in an
+        # executor so the connect doesn't stall the event loop.
+        tls_context = await asyncio.get_running_loop().run_in_executor(
+            None, alpn_mqtt_context
+        )
         self._shadow = ShadowConnection(
             thing_name=thing,
             jwt=self._require_jwt(),
             endpoint=IOT_ENDPOINTS[self._region],
+            tls_context=tls_context,
         )
         self._shadow.add_listener(self._on_reported)
         self._shadow.add_error_listener(self._on_error)
