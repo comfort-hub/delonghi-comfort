@@ -127,6 +127,81 @@ async def test_dispatch_captures_and_merges_status_metadata() -> None:
     assert conn.reported_metadata["RoomTemp"] == {"timestamp": 100}  # preserved
 
 
+async def test_dispatch_ignores_stale_or_duplicate_version() -> None:
+    """A get/accepted with a non-newer version is ignored, but its waiter resolves."""
+    conn = _conn()
+    seen: list[dict[str, object]] = []
+    conn.add_listener(seen.append)
+
+    # First document (version 5) is applied and notified.
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"RoomTemp": 200}}, "version": 5}),
+    )
+    assert conn.reported["RoomTemp"] == 200
+    assert conn.reported_version == 5
+    assert len(seen) == 1
+
+    # A stale (older) version is ignored for state, but the waiter still resolves.
+    fut: asyncio.Future[dict[str, object]] = asyncio.get_running_loop().create_future()
+    conn._get_waiters.setdefault(SHADOW_STATUS, []).append(fut)
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"RoomTemp": 999}}, "version": 4}),
+    )
+    assert fut.done()  # poll must not hang
+    assert conn.reported["RoomTemp"] == 200  # not overwritten
+    assert len(seen) == 1  # no spurious notify
+
+    # The same version (a duplicate, or an idle poll re-reading the static shadow)
+    # is also ignored — this is what makes idle re-reads a true no-op.
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"RoomTemp": 888}}, "version": 5}),
+    )
+    assert conn.reported["RoomTemp"] == 200
+    assert len(seen) == 1
+
+    # A newer version is applied and notified.
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"RoomTemp": 210}}, "version": 6}),
+    )
+    assert conn.reported["RoomTemp"] == 210
+    assert conn.reported_version == 6
+    assert len(seen) == 2
+
+
+async def test_update_documents_ignores_non_newer_version() -> None:
+    """update/documents only applies when its shadow version advances."""
+    conn = _conn()
+    seen: list[dict[str, object]] = []
+    conn.add_listener(seen.append)
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "get/accepted"),
+        json.dumps({"state": {"reported": {"DeviceStatus": 0}}, "version": 5}),
+    )
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "update/documents"),
+        json.dumps(
+            {"current": {"state": {"reported": {"DeviceStatus": 1}}, "version": 6}}
+        ),
+    )
+    assert conn.reported["DeviceStatus"] == 1
+    assert conn.reported_version == 6
+    assert len(seen) == 2
+
+    # A duplicate/out-of-order update at the same version is ignored.
+    conn._dispatch(
+        shadow_topic(THING, SHADOW_STATUS, "update/documents"),
+        json.dumps(
+            {"current": {"state": {"reported": {"DeviceStatus": 0}}, "version": 6}}
+        ),
+    )
+    assert conn.reported["DeviceStatus"] == 1  # unchanged
+    assert len(seen) == 2  # no spurious notify
+
+
 async def test_send_command_awaits_ok_response() -> None:
     """async_send_command publishes and resolves when an OK reply arrives."""
     conn = _conn()

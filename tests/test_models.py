@@ -154,6 +154,21 @@ def test_status_metadata_absent_or_garbage_yields_none() -> None:
     assert garbage.last_reported_at is None
 
 
+def test_status_value_equality_enables_coordinator_dedup() -> None:
+    """Snapshots with equal reported+metadata compare equal (unlocks always_update=False)."""
+    a = MachineStatus.from_reported(
+        {"RoomTemp": 200}, metadata={"RoomTemp": {"timestamp": 1}}
+    )
+    b = MachineStatus.from_reported(
+        {"RoomTemp": 200}, metadata={"RoomTemp": {"timestamp": 1}}
+    )
+    c = MachineStatus.from_reported(
+        {"RoomTemp": 210}, metadata={"RoomTemp": {"timestamp": 2}}
+    )
+    assert a == b
+    assert a != c
+
+
 def test_capabilities() -> None:
     """Capabilities map from the MachineCapabilities shadow."""
     caps = MachineCapabilities.from_reported(
