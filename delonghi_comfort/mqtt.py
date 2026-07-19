@@ -106,11 +106,22 @@ class ShadowConnection:
         self._connection_state = ConnectionState.DISCONNECTED
         self._reported: dict[str, Any] = {}
         self._reported_metadata: dict[str, Any] = {}
+        self._version: int | None = None
 
     @property
     def reported(self) -> dict[str, Any]:
         """The most recent merged ``MachineStatus`` reported state."""
         return dict(self._reported)
+
+    @property
+    def reported_version(self) -> int | None:
+        """The shadow document version of the applied reported state, if known.
+
+        AWS IoT increments this on every shadow update. It only advances on real
+        device changes; an idle re-read returns the same version. Used to drop
+        stale/duplicate/out-of-order messages (see :meth:`_is_stale_version`).
+        """
+        return self._version
 
     @property
     def reported_metadata(self) -> dict[str, Any]:
@@ -272,16 +283,19 @@ class ShadowConnection:
             reported = payload.get("state", {}).get("reported", {})
             self._resolve_get(shadow, reported)
             if shadow == SHADOW_STATUS:
-                self._reported = dict(reported)
-                self._reported_metadata = dict(
-                    payload.get("metadata", {}).get("reported", {})
-                )
-                _LOGGER.debug(
-                    "status get/accepted: version=%s keys=%s",
-                    payload.get("version"),
-                    sorted(reported),
-                )
-                self._notify()
+                version = payload.get("version")
+                if not self._is_stale_version(version):
+                    self._reported = dict(reported)
+                    self._reported_metadata = dict(
+                        payload.get("metadata", {}).get("reported", {})
+                    )
+                    self._record_version(version)
+                    _LOGGER.debug(
+                        "status get/accepted applied: version=%s keys=%s",
+                        version,
+                        sorted(reported),
+                    )
+                    self._notify()
             return
 
         if topic.endswith("get/rejected"):
@@ -295,14 +309,16 @@ class ShadowConnection:
         if topic.endswith(f"{SHADOW_STATUS}/update/documents"):
             current = payload.get("current", {})
             reported = current.get("state", {}).get("reported", {})
-            if reported:
+            version = current.get("version")
+            if reported and not self._is_stale_version(version):
                 self._reported.update(reported)
                 self._reported_metadata.update(
                     current.get("metadata", {}).get("reported", {})
                 )
+                self._record_version(version)
                 _LOGGER.debug(
-                    "status update/documents: version=%s changed=%s",
-                    current.get("version"),
+                    "status update/documents applied: version=%s changed=%s",
+                    version,
                     sorted(reported),
                 )
                 self._notify()
@@ -316,6 +332,26 @@ class ShadowConnection:
         for future in self._get_waiters.pop(shadow, []):
             if not future.done():
                 future.set_exception(error)
+
+    def _is_stale_version(self, version: Any) -> bool:
+        """Whether an incoming shadow ``version`` should be ignored.
+
+        A message is stale/duplicate when we already hold a version at least as
+        new. Missing/non-int versions are never treated as stale (they cannot be
+        ordered, so we apply them). This makes an idle poll re-reading the
+        unchanged shadow a true no-op and drops out-of-order/duplicate deliveries.
+        """
+        return (
+            isinstance(version, int)
+            and not isinstance(version, bool)
+            and self._version is not None
+            and version <= self._version
+        )
+
+    def _record_version(self, version: Any) -> None:
+        """Store the applied shadow ``version`` when it is a usable integer."""
+        if isinstance(version, int) and not isinstance(version, bool):
+            self._version = version
 
     def _notify(self) -> None:
         snapshot = dict(self._reported)
