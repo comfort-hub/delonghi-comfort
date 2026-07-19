@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from datetime import UTC, datetime
+import threading
 from typing import TYPE_CHECKING
 
 import pytest
@@ -244,6 +245,26 @@ async def test_status_carries_reported_metadata(
 
     shadow.fire({"DeviceStatus": 0})
     assert seen[-1].last_reported_at == expected
+
+
+async def test_async_connect_builds_tls_context_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The TLS context (cert loading is a blocking call) is built in an executor."""
+    built_on: dict[str, threading.Thread] = {}
+
+    def _spy() -> object:
+        built_on["thread"] = threading.current_thread()
+        return object()  # ShadowConnection is mocked, so any object will do
+
+    monkeypatch.setattr("delonghi_comfort.client.alpn_mqtt_context", _spy)
+    shadow = RecordingShadow()
+    monkeypatch.setattr("delonghi_comfort.client.ShadowConnection", lambda **_: shadow)
+    client = await _logged_in_client()
+
+    await client.async_connect("THING")
+
+    assert built_on["thread"] is not threading.current_thread()
 
 
 async def test_brightness_out_of_range() -> None:
