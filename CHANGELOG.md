@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.3...v0.3.4) (2026-07-19)
+
+
+### Features
+
+* version-gate shadow updates to drop stale/duplicate messages ([#34](https://github.com/comfort-hub/delonghi-comfort/issues/34)) ([8fdc33a](https://github.com/comfort-hub/delonghi-comfort/commit/8fdc33a09cc521f4aa23c731229bcc8bb29f992d))
+
 ## [0.3.3](https://github.com/comfort-hub/delonghi-comfort/compare/v0.3.2...v0.3.3) (2026-07-19)
 
 
