@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .const import SUPPORTED_REGIONS
-from .exceptions import TransportError
+from .exceptions import DelonghiComfortError, TransportError
 from .gigya import GigyaAuth
 from .rest import async_get_devices
 
@@ -47,29 +47,29 @@ async def async_discover(
         with the region whose backend hosts it.
 
     Raises:
-        AuthenticationError: The credentials were rejected at login, or a region
-            rejected the JWT (HTTP 401/403).
-        TransportError: No devices were found and at least one region's request
-            failed, so discovery could not be completed.
+        AuthenticationError: The credentials were rejected at login, or no region
+            answered and none failed transiently (every region rejected the JWT).
+        TransportError: No region answered and at least one failed transiently,
+            so discovery could not be completed.
 
     """
     gigya = GigyaAuth(session)
     credentials = await gigya.login(email, password)
     jwt = await gigya.get_jwt(credentials)
     found: list[DiscoveredDevice] = []
-    last_error: TransportError | None = None
+    errors: list[DelonghiComfortError] = []
     for region in SUPPORTED_REGIONS:
         try:
             # Fail fast per region: a rejected region should move on to the next,
             # not spend the transient-retry budget.
             devices = await async_get_devices(session, jwt, region, retries=1)
-        except TransportError as err:
+        except DelonghiComfortError as err:
             _LOGGER.debug("discovery: skipping region %s: %s", region, err)
-            last_error = err
+            errors.append(err)
             continue
         found.extend(
             DiscoveredDevice(device=device, region=region) for device in devices
         )
-    if not found and last_error is not None:
-        raise last_error
+    if not found and errors:
+        raise next((e for e in errors if isinstance(e, TransportError)), errors[-1])
     return credentials, found

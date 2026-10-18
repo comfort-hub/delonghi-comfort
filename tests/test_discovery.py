@@ -88,8 +88,8 @@ async def test_discover_bad_password_raises_auth() -> None:
         await async_discover(session, "me@example.com", "wrong")
 
 
-async def test_discover_region_auth_rejection_raises() -> None:
-    """A region rejecting the JWT (401/403) propagates AuthenticationError."""
+async def test_discover_region_auth_rejection_keeps_other_region_devices() -> None:
+    """One region rejecting the JWT does not discard another region's devices."""
     session = make_session(
         {
             **_gigya_routes(),
@@ -97,8 +97,47 @@ async def test_discover_region_auth_rejection_raises() -> None:
             "us-east-1": FakeResponse(status=403, text_data="forbidden"),
         }
     )
+    _, found = await async_discover(session, "me@example.com", "pw")
+    assert [(d.device.thing_name, d.region) for d in found] == [("EU1", "eu")]
+
+
+async def test_discover_all_regions_reject_raises_auth() -> None:
+    """Every region rejecting the JWT raises AuthenticationError."""
+    session = make_session(
+        {
+            **_gigya_routes(),
+            "eu-central-1": FakeResponse(status=403, text_data="forbidden"),
+            "us-east-1": FakeResponse(status=403, text_data="forbidden"),
+        }
+    )
     with pytest.raises(AuthenticationError):
         await async_discover(session, "me@example.com", "pw")
+
+
+async def test_discover_auth_and_transport_failures_raise_transport() -> None:
+    """A transient failure outranks an auth rejection when nothing answered."""
+    session = make_session(
+        {
+            **_gigya_routes(),
+            "eu-central-1": FakeResponse(status=502, text_data="bad gateway"),
+            "us-east-1": FakeResponse(status=403, text_data="forbidden"),
+        }
+    )
+    with pytest.raises(TransportError):
+        await async_discover(session, "me@example.com", "pw")
+
+
+async def test_discover_transient_region_keeps_other_region_devices() -> None:
+    """A region timing out does not discard another region's devices."""
+    session = make_session(
+        {
+            **_gigya_routes(),
+            "eu-central-1": _devices("EU1"),
+            "us-east-1": FakeResponse(enter_exc=TimeoutError()),
+        }
+    )
+    _, found = await async_discover(session, "me@example.com", "pw")
+    assert [(d.device.thing_name, d.region) for d in found] == [("EU1", "eu")]
 
 
 async def test_discover_one_region_errors_other_empty_raises() -> None:
