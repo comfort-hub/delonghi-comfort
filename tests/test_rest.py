@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
+import aiohttp
 import pytest
 
 from delonghi_comfort import rest
+from delonghi_comfort.const import REQUEST_TIMEOUT_SECONDS
 from delonghi_comfort.exceptions import AuthenticationError, TransportError
 from delonghi_comfort.rest import async_get_devices
 
-from .fakes import FakeResponse, make_session
-
-if TYPE_CHECKING:
-    import aiohttp
+from .fakes import FakeResponse, FakeSession, make_session
 
 
 class _SequenceSession:
@@ -62,6 +61,13 @@ async def test_get_devices() -> None:
     assert len(devices) == 1
     assert devices[0].thing_name == "THING"
     assert devices[0].online is True
+
+
+async def test_get_devices_passes_request_timeout() -> None:
+    """The REST call carries the 30 s client timeout."""
+    session = FakeSession({"devices": _ONLINE})
+    await async_get_devices(session, "jwt")  # type: ignore[arg-type]
+    assert session.timeouts == [aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)]
 
 
 async def test_get_devices_unauthorized(monkeypatch: pytest.MonkeyPatch) -> None:

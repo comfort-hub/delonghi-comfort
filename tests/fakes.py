@@ -46,6 +46,7 @@ class FakeSession:
     def __init__(self, routes: dict[str, FakeResponse] | None = None) -> None:
         self.routes = routes or {}
         self.calls: list[tuple[str, str, dict[str, str] | None]] = []
+        self.timeouts: list[object] = []
 
     def _match(
         self, method: str, url: str, headers: dict[str, str] | None
@@ -63,6 +64,7 @@ class FakeSession:
         headers: dict[str, str] | None = None,
         timeout: object = None,
     ) -> FakeResponse:
+        self.timeouts.append(timeout)
         return self._match("POST", url, headers)
 
     def get(
@@ -71,6 +73,7 @@ class FakeSession:
         headers: dict[str, str] | None = None,
         timeout: object = None,
     ) -> FakeResponse:
+        self.timeouts.append(timeout)
         return self._match("GET", url, headers)
 
 

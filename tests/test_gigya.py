@@ -6,12 +6,14 @@ import base64
 import json
 from typing import Any
 
+import aiohttp
 import pytest
 
+from delonghi_comfort.const import REQUEST_TIMEOUT_SECONDS
 from delonghi_comfort.exceptions import AuthenticationError, TransportError
 from delonghi_comfort.gigya import GigyaAuth, GigyaCredentials, _sign
 
-from .fakes import FakeResponse, make_session
+from .fakes import FakeResponse, FakeSession, make_session
 
 _SECRET = base64.b64encode(b"a-shared-secret").decode()
 
@@ -59,6 +61,22 @@ async def test_login_success() -> None:
     creds = await auth.login("me@example.com", "pw")
     assert creds.session_token == "st"
     assert creds.api_key == "4_VTLGz33ylwYVesXKstwnXw"  # first (COMFORT_EU) pool
+
+
+async def test_login_passes_request_timeout() -> None:
+    """Gigya calls carry the 30 s client timeout."""
+    session = FakeSession(
+        {
+            "accounts.login": FakeResponse(
+                json_data={
+                    "errorCode": 0,
+                    "sessionInfo": {"sessionToken": "st", "sessionSecret": _SECRET},
+                }
+            )
+        }
+    )
+    await GigyaAuth(session).login("me@example.com", "pw")  # type: ignore[arg-type]
+    assert session.timeouts == [aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)]
 
 
 async def test_login_all_pools_wrong() -> None:
