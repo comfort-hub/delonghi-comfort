@@ -8,8 +8,8 @@ from delonghi_comfort import TemperatureUnit
 from delonghi_comfort.models import Device, MachineCapabilities, MachineStatus
 
 _DEVICE = {
-    "machineName": "EUPDL01COM000000004875",
-    "serialNumber": "90:70:69:90:93:74",
+    "machineName": "EUPDL01COM000000000001",
+    "serialNumber": "02:00:00:00:00:01",
     "sku": "0110070300",
     "machineModel": "TRD5WIFI",
     "status": "ONLINE",
@@ -33,8 +33,8 @@ _REPORTED = {
 def test_device_from_dict() -> None:
     """Device fields map from the ownedByMe entry."""
     device = Device.from_dict(_DEVICE)
-    assert device.thing_name == "EUPDL01COM000000004875"
-    assert device.serial_number == "90:70:69:90:93:74"
+    assert device.thing_name == "EUPDL01COM000000000001"
+    assert device.serial_number == "02:00:00:00:00:01"
     assert device.model == "TRD5WIFI"
     assert device.online is True
 
@@ -173,14 +173,14 @@ def test_capabilities() -> None:
     """Capabilities map from the MachineCapabilities shadow."""
     caps = MachineCapabilities.from_reported(
         {
-            "MAC": "90:70:69:90:93:74",
-            "SN": "90:70:69:90:93:74",
+            "MAC": "02:00:00:00:00:01",
+            "SN": "02:00:00:00:00:01",
             "MachineModel": "TRD5WIFI",
             "SKU": "0110070300",
             "FWWiFiVersion": "2.1.4",
             "DLAWS_Version": "1.0.9",
         }
     )
-    assert caps.mac == "90:70:69:90:93:74"
+    assert caps.mac == "02:00:00:00:00:01"
     assert caps.wifi_firmware == "2.1.4"
     assert caps.aws_version == "1.0.9"

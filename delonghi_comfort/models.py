@@ -32,7 +32,7 @@ class Device:
     thing_name: str
     """AWS IoT thing name / ``machineName`` — the id used for all MQTT topics."""
     serial_number: str
-    """De'Longhi serial number (the Wi-Fi MAC, e.g. ``90:70:69:90:93:74``)."""
+    """De'Longhi serial number (the Wi-Fi MAC, e.g. ``02:00:00:00:00:01``)."""
     model: str
     sku: str
     online: bool

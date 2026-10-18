@@ -21,7 +21,7 @@ from .fakes import FakeMqttClient
 if TYPE_CHECKING:
     import aiomqtt
 
-THING = "EUPDL01COM000000004875"
+THING = "EUPDL01COM000000000001"
 
 
 def _conn() -> ShadowConnection:
