@@ -112,6 +112,7 @@ class DelonghiComfort:
     # -- live connection -----------------------------------------------------
     async def async_connect(self, device: Device | str) -> None:
         """Open the MQTT shadow/command connection for a device (or thing name)."""
+        await self.async_close()  # don't leak a previous connection
         thing = device.thing_name if isinstance(device, Device) else device
         # Building the TLS context loads system certs (blocking I/O). Do it in an
         # executor so the connect doesn't stall the event loop.

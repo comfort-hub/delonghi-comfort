@@ -6,6 +6,7 @@ import base64
 from datetime import UTC, datetime
 import threading
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -265,6 +266,26 @@ async def test_async_connect_builds_tls_context_off_the_event_loop(
     await client.async_connect("THING")
 
     assert built_on["thread"] is not threading.current_thread()
+
+
+async def test_connect_twice_stops_previous_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reconnecting must not leak the old MQTT connection."""
+    first, second = RecordingShadow(), RecordingShadow()
+    first.stop = AsyncMock()  # type: ignore[method-assign]
+    second.stop = AsyncMock()  # type: ignore[method-assign]
+    shadows = iter([first, second])
+    monkeypatch.setattr(
+        "delonghi_comfort.client.ShadowConnection", lambda **_: next(shadows)
+    )
+    client = await _logged_in_client()
+
+    await client.async_connect("A")
+    await client.async_connect("B")
+
+    first.stop.assert_awaited_once()
+    second.stop.assert_not_awaited()
 
 
 async def test_brightness_out_of_range() -> None:
