@@ -14,13 +14,20 @@ class FakeResponse:
     """Minimal stand-in for an aiohttp response used as an async context manager."""
 
     def __init__(
-        self, status: int = 200, json_data: Any = None, text_data: str = ""
+        self,
+        status: int = 200,
+        json_data: Any = None,
+        text_data: str = "",
+        enter_exc: BaseException | None = None,
     ) -> None:
         self.status = status
+        self._enter_exc = enter_exc
         self._json = json_data
         self._text = text_data
 
     async def __aenter__(self) -> Self:
+        if self._enter_exc is not None:
+            raise self._enter_exc
         return self
 
     async def __aexit__(self, *_exc: object) -> bool:
@@ -54,10 +61,16 @@ class FakeSession:
         url: str,
         data: Any = None,
         headers: dict[str, str] | None = None,
+        timeout: object = None,
     ) -> FakeResponse:
         return self._match("POST", url, headers)
 
-    def get(self, url: str, headers: dict[str, str] | None = None) -> FakeResponse:
+    def get(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        timeout: object = None,
+    ) -> FakeResponse:
         return self._match("GET", url, headers)
 
 

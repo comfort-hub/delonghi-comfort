@@ -36,6 +36,8 @@ REST_BASE_URLS: Final[dict[str, str]] = {
 }
 # Sent as the `source` header on every REST/command call.
 SOURCE: Final = "comfort"
+# Total per-request HTTP timeout (Gigya and REST), so a hung connection cannot stall callers.
+REQUEST_TIMEOUT_SECONDS: Final = 30
 # Sent as `AppId` inside every command payload.
 APP_ID: Final = "Comfort"
 

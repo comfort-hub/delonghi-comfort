@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
@@ -23,7 +23,12 @@ class _SequenceSession:
         self._responses = responses
         self.calls = 0
 
-    def get(self, url: str, headers: dict[str, str] | None = None) -> FakeResponse:
+    def get(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        timeout: object = None,
+    ) -> FakeResponse:
         response = self._responses[min(self.calls, len(self._responses) - 1)]
         self.calls += 1
         return response
@@ -95,3 +100,40 @@ async def test_get_devices_gives_up_after_retries(
     with pytest.raises(TransportError):
         await async_get_devices(session, "jwt")
     assert cast("_SequenceSession", session).calls == rest._RETRY_ATTEMPTS
+
+
+async def test_get_devices_timeout_raises_transport_error() -> None:
+    """A hung request (TimeoutError) surfaces as TransportError."""
+    session = make_session({"devices": FakeResponse(enter_exc=TimeoutError())})
+    with pytest.raises(TransportError):
+        await async_get_devices(session, "jwt", retries=1)
+
+
+async def test_get_devices_timeout_is_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timeout is transient: retried, then the next success is returned."""
+    monkeypatch.setattr(rest, "_RETRY_BACKOFF_SECONDS", 0)
+    session = _seq([FakeResponse(enter_exc=TimeoutError()), _ONLINE])
+    devices = await async_get_devices(session, "jwt")
+    assert len(devices) == 1
+    assert cast("_SequenceSession", session).calls == 2
+
+
+class _NonJson(FakeResponse):
+    async def json(self, content_type: str | None = None) -> Any:
+        raise ValueError("not json")
+
+
+async def test_get_devices_non_json_raises_transport_error() -> None:
+    """A 200 with a non-JSON body is a TransportError, not a raw ValueError."""
+    session = make_session({"devices": _NonJson(text_data="<html>")})
+    with pytest.raises(TransportError):
+        await async_get_devices(session, "jwt", retries=1)
+
+
+async def test_get_devices_non_object_json_raises_transport_error() -> None:
+    """A 200 whose JSON is not an object is a TransportError."""
+    session = make_session({"devices": FakeResponse(json_data=[1, 2])})
+    with pytest.raises(TransportError):
+        await async_get_devices(session, "jwt", retries=1)

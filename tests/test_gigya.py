@@ -193,3 +193,10 @@ async def test_login_rate_limit_raises_transport_not_auth() -> None:
     )
     with pytest.raises(TransportError):
         await auth.login("me@example.com", "pw")
+
+
+async def test_post_timeout_raises_transport_error() -> None:
+    """A hung Gigya call (TimeoutError) surfaces as TransportError."""
+    auth = _auth({"accounts.login": FakeResponse(enter_exc=TimeoutError())})
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")

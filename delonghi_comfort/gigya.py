@@ -18,7 +18,12 @@ from urllib.parse import quote, urlencode
 
 import aiohttp
 
-from .const import GIGYA_API_KEYS, GIGYA_BASE_URL, JWT_EXPIRATION_SECONDS
+from .const import (
+    GIGYA_API_KEYS,
+    GIGYA_BASE_URL,
+    JWT_EXPIRATION_SECONDS,
+    REQUEST_TIMEOUT_SECONDS,
+)
 from .exceptions import AuthenticationError, TransportError
 
 # Gigya errorCode returned when an account is not on the probed pool.
@@ -64,6 +69,7 @@ class GigyaAuth:
                 url,
                 data=urlencode(params).encode(),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),
             ) as response:
                 status = response.status
                 try:
@@ -83,7 +89,7 @@ class GigyaAuth:
                         f"Gigya {path} failed (HTTP {status}): "
                         f"{payload.get('errorMessage', payload)}"
                     )
-        except aiohttp.ClientError as exc:
+        except (aiohttp.ClientError, TimeoutError) as exc:
             raise TransportError(f"Gigya request to {path} failed: {exc}") from exc
         return payload
 

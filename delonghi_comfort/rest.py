@@ -12,7 +12,7 @@ from typing import Any
 
 import aiohttp
 
-from .const import REST_BASE_URLS, SOURCE
+from .const import REQUEST_TIMEOUT_SECONDS, REST_BASE_URLS, SOURCE
 from .exceptions import AuthenticationError, DelonghiComfortError, TransportError
 from .models import Device
 
@@ -59,7 +59,11 @@ async def _async_get_devices_once(
         "Accept": "application/json",
     }
     try:
-        async with session.get(url, headers=headers) as response:
+        async with session.get(
+            url,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),
+        ) as response:
             if response.status in (401, 403):
                 raise AuthenticationError(
                     f"devices request unauthorized (HTTP {response.status})"
@@ -69,9 +73,15 @@ async def _async_get_devices_once(
                 raise TransportError(
                     f"devices request failed (HTTP {response.status}): {body[:200]}"
                 )
-            data: dict[str, Any] = await response.json(content_type=None)
-    except aiohttp.ClientError as exc:
+            try:
+                data: Any = await response.json(content_type=None)
+            except ValueError as exc:
+                raise TransportError("devices response was not valid JSON") from exc
+    except (aiohttp.ClientError, TimeoutError) as exc:
         raise TransportError(f"devices request failed: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise TransportError("devices response was not a JSON object")
 
     entries = [*data.get("ownedByMe", []), *data.get("sharedToMe", [])]
     return [Device.from_dict(entry) for entry in entries]
