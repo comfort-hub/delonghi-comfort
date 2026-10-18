@@ -33,6 +33,11 @@ _WRONG_POOL_CODE = 400093
 _RATE_LIMIT_CODES = frozenset({403048, 403120})
 
 
+def _is_transient(error_code: int) -> bool:
+    """Return True for throttling and Gigya 5xxxxx server/network errors."""
+    return error_code in _RATE_LIMIT_CODES or error_code >= 500000
+
+
 @dataclass(frozen=True, slots=True)
 class GigyaCredentials:
     """A long-lived Gigya session, enough to mint fresh JWTs without a password."""
@@ -80,6 +85,10 @@ class GigyaAuth:
                         f"Gigya {path} returned a non-JSON response "
                         f"(HTTP {status}): {body[:200]}"
                     ) from exc
+                if not isinstance(payload, dict):
+                    raise TransportError(
+                        f"Gigya {path} returned a non-object JSON body (HTTP {status})"
+                    )
                 if status >= 400:
                     # Gigya reports its own auth errors as HTTP 200 + an errorCode,
                     # so a 4xx/5xx here is an infra/gateway failure, not a bad
@@ -120,10 +129,10 @@ class GigyaAuth:
             elif error_code == _WRONG_POOL_CODE:
                 last_error = f"pool {pool}: wrong pool"
                 continue
-            elif error_code in _RATE_LIMIT_CODES:
+            elif _is_transient(error_code):
                 # Transient throttle: retryable, and not a credential problem.
                 raise TransportError(
-                    f"Gigya rate-limited login (error {error_code}): "
+                    f"Gigya transient login failure (error {error_code}): "
                     f"{payload.get('errorMessage', 'try again later')}"
                 )
             else:
@@ -147,6 +156,12 @@ class GigyaAuth:
         payload = await self._post("/accounts.getJWT", params)
         token = payload.get("id_token")
         if not isinstance(token, str) or not token:
+            error_code = payload.get("errorCode", 0)
+            if _is_transient(error_code):
+                raise TransportError(
+                    f"getJWT transient failure (error {error_code}): "
+                    f"{payload.get('errorMessage', 'try again later')}"
+                )
             raise AuthenticationError(
                 f"getJWT failed: {payload.get('errorMessage', payload)}"
             )

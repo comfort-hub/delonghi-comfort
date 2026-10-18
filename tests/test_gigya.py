@@ -200,3 +200,35 @@ async def test_post_timeout_raises_transport_error() -> None:
     auth = _auth({"accounts.login": FakeResponse(enter_exc=TimeoutError())})
     with pytest.raises(TransportError):
         await auth.login("me@example.com", "pw")
+
+
+_CREDS = GigyaCredentials(api_key="4_x", session_token="st", session_secret=_SECRET)
+
+
+async def test_get_jwt_rate_limit_raises_transport_not_auth() -> None:
+    """A throttled getJWT is transient, not a credential failure."""
+    auth = _auth({"accounts.getJWT": FakeResponse(json_data={"errorCode": 403048})})
+    with pytest.raises(TransportError) as exc_info:
+        await auth.get_jwt(_CREDS)
+    assert not isinstance(exc_info.value, AuthenticationError)
+
+
+async def test_get_jwt_server_error_raises_transport() -> None:
+    """A Gigya 5xxxxx errorCode on getJWT is transient."""
+    auth = _auth({"accounts.getJWT": FakeResponse(json_data={"errorCode": 500001})})
+    with pytest.raises(TransportError):
+        await auth.get_jwt(_CREDS)
+
+
+async def test_login_server_error_raises_transport() -> None:
+    """A Gigya 5xxxxx errorCode on login is transient."""
+    auth = _auth({"accounts.login": FakeResponse(json_data={"errorCode": 500001})})
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
+async def test_post_non_object_json_raises_transport_error() -> None:
+    """A JSON body that is not an object is a transport failure."""
+    auth = _auth({"accounts.login": FakeResponse(json_data=[1, 2])})
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
