@@ -137,3 +137,12 @@ async def test_get_devices_non_object_json_raises_transport_error() -> None:
     session = make_session({"devices": FakeResponse(json_data=[1, 2])})
     with pytest.raises(TransportError):
         await async_get_devices(session, "jwt", retries=1)
+
+
+async def test_get_devices_malformed_entries_raise_transport_error() -> None:
+    """Null lists are empty; non-object entries are a TransportError."""
+    null = make_session({"devices": FakeResponse(json_data={"ownedByMe": None})})
+    assert await async_get_devices(null, "jwt", retries=1) == []
+    bad = make_session({"devices": FakeResponse(json_data={"ownedByMe": [1]})})
+    with pytest.raises(TransportError):
+        await async_get_devices(bad, "jwt", retries=1)

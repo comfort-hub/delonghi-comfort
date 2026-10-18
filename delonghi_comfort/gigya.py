@@ -130,7 +130,7 @@ class GigyaAuth:
                 last_error = f"pool {pool}: wrong pool"
                 continue
             elif _is_transient(error_code):
-                # Transient throttle: retryable, and not a credential problem.
+                # Throttle or Gigya server error: retryable, not a credential problem.
                 raise TransportError(
                     f"Gigya transient login failure (error {error_code}): "
                     f"{payload.get('errorMessage', 'try again later')}"

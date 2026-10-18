@@ -83,5 +83,8 @@ async def _async_get_devices_once(
     if not isinstance(data, dict):
         raise TransportError("devices response was not a JSON object")
 
-    entries = [*data.get("ownedByMe", []), *data.get("sharedToMe", [])]
-    return [Device.from_dict(entry) for entry in entries]
+    try:
+        entries = [*(data.get("ownedByMe") or []), *(data.get("sharedToMe") or [])]
+        return [Device.from_dict(entry) for entry in entries]
+    except (TypeError, AttributeError) as exc:
+        raise TransportError("devices response was malformed") from exc

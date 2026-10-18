@@ -208,9 +208,8 @@ _CREDS = GigyaCredentials(api_key="4_x", session_token="st", session_secret=_SEC
 async def test_get_jwt_rate_limit_raises_transport_not_auth() -> None:
     """A throttled getJWT is transient, not a credential failure."""
     auth = _auth({"accounts.getJWT": FakeResponse(json_data={"errorCode": 403048})})
-    with pytest.raises(TransportError) as exc_info:
+    with pytest.raises(TransportError):
         await auth.get_jwt(_CREDS)
-    assert not isinstance(exc_info.value, AuthenticationError)
 
 
 async def test_get_jwt_server_error_raises_transport() -> None:

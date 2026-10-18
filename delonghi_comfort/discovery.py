@@ -47,10 +47,11 @@ async def async_discover(
         with the region whose backend hosts it.
 
     Raises:
-        AuthenticationError: The credentials were rejected at login, or no region
-            answered and none failed transiently (every region rejected the JWT).
-        TransportError: No region answered and at least one failed transiently,
-            so discovery could not be completed.
+        AuthenticationError: The credentials were rejected at login, or every
+            region rejected the JWT (none failed transiently).
+        TransportError: No devices were found and at least one region failed
+            transiently, so discovery could not be completed. If some region
+            answered and none failed transiently, an empty list is returned.
 
     """
     gigya = GigyaAuth(session)
@@ -70,6 +71,11 @@ async def async_discover(
         found.extend(
             DiscoveredDevice(device=device, region=region) for device in devices
         )
-    if not found and errors:
+    # An empty account answers 200 in one region and may 403 in another, so
+    # auth errors only raise when every region failed.
+    if not found and (
+        any(isinstance(e, TransportError) for e in errors)
+        or len(errors) == len(SUPPORTED_REGIONS)
+    ):
         raise next((e for e in errors if isinstance(e, TransportError)), errors[-1])
     return credentials, found

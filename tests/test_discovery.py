@@ -177,3 +177,16 @@ async def test_discover_all_regions_failing_raises() -> None:
     )
     with pytest.raises(TransportError):
         await async_discover(session, "me@example.com", "pw")
+
+
+async def test_discover_empty_region_and_auth_rejection_returns_empty() -> None:
+    """An account with no heaters (EU empty, US 403) is empty, not invalid auth."""
+    session = make_session(
+        {
+            **_gigya_routes(),
+            "eu-central-1": _devices(),
+            "us-east-1": FakeResponse(status=403, text_data="forbidden"),
+        }
+    )
+    _, found = await async_discover(session, "me@example.com", "pw")
+    assert found == []
