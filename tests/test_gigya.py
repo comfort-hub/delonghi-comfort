@@ -6,12 +6,14 @@ import base64
 import json
 from typing import Any
 
+import aiohttp
 import pytest
 
+from delonghi_comfort.const import REQUEST_TIMEOUT_SECONDS
 from delonghi_comfort.exceptions import AuthenticationError, TransportError
 from delonghi_comfort.gigya import GigyaAuth, GigyaCredentials, _sign
 
-from .fakes import FakeResponse, make_session
+from .fakes import FakeResponse, FakeSession, make_session
 
 _SECRET = base64.b64encode(b"a-shared-secret").decode()
 
@@ -59,6 +61,22 @@ async def test_login_success() -> None:
     creds = await auth.login("me@example.com", "pw")
     assert creds.session_token == "st"
     assert creds.api_key == "4_VTLGz33ylwYVesXKstwnXw"  # first (COMFORT_EU) pool
+
+
+async def test_login_passes_request_timeout() -> None:
+    """Gigya calls carry the 30 s client timeout."""
+    session = FakeSession(
+        {
+            "accounts.login": FakeResponse(
+                json_data={
+                    "errorCode": 0,
+                    "sessionInfo": {"sessionToken": "st", "sessionSecret": _SECRET},
+                }
+            )
+        }
+    )
+    await GigyaAuth(session).login("me@example.com", "pw")  # type: ignore[arg-type]
+    assert session.timeouts == [aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)]
 
 
 async def test_login_all_pools_wrong() -> None:
@@ -191,5 +209,43 @@ async def test_login_rate_limit_raises_transport_not_auth() -> None:
             )
         }
     )
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
+async def test_post_timeout_raises_transport_error() -> None:
+    """A hung Gigya call (TimeoutError) surfaces as TransportError."""
+    auth = _auth({"accounts.login": FakeResponse(enter_exc=TimeoutError())})
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
+_CREDS = GigyaCredentials(api_key="4_x", session_token="st", session_secret=_SECRET)
+
+
+async def test_get_jwt_rate_limit_raises_transport_not_auth() -> None:
+    """A throttled getJWT is transient, not a credential failure."""
+    auth = _auth({"accounts.getJWT": FakeResponse(json_data={"errorCode": 403048})})
+    with pytest.raises(TransportError):
+        await auth.get_jwt(_CREDS)
+
+
+async def test_get_jwt_server_error_raises_transport() -> None:
+    """A Gigya 5xxxxx errorCode on getJWT is transient."""
+    auth = _auth({"accounts.getJWT": FakeResponse(json_data={"errorCode": 500001})})
+    with pytest.raises(TransportError):
+        await auth.get_jwt(_CREDS)
+
+
+async def test_login_server_error_raises_transport() -> None:
+    """A Gigya 5xxxxx errorCode on login is transient."""
+    auth = _auth({"accounts.login": FakeResponse(json_data={"errorCode": 500001})})
+    with pytest.raises(TransportError):
+        await auth.login("me@example.com", "pw")
+
+
+async def test_post_non_object_json_raises_transport_error() -> None:
+    """A JSON body that is not an object is a transport failure."""
+    auth = _auth({"accounts.login": FakeResponse(json_data=[1, 2])})
     with pytest.raises(TransportError):
         await auth.login("me@example.com", "pw")

@@ -6,6 +6,10 @@ on:
       - main
   pull_request:
 
+# CI runners now resolve Python 3.15, which lacks wheels for some deps.
+env:
+  UV_PYTHON: "3.13"
+
 jobs:
   pre-commit:
     name: Pre-commit
@@ -32,3 +36,16 @@ jobs:
       - name: Run prek on all files
         run: |
           uvx prek run --all-files --show-diff-on-failure --color=always
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Prepare and install deps
+        uses: ./.github/actions/install-deps
+
+      - name: Run pytest
+        run: uv run --locked pytest -q

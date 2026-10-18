@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from .const import SUPPORTED_REGIONS
-from .exceptions import TransportError
+from .exceptions import DelonghiComfortError, TransportError
 from .gigya import GigyaAuth
 from .rest import async_get_devices
 
@@ -47,29 +47,35 @@ async def async_discover(
         with the region whose backend hosts it.
 
     Raises:
-        AuthenticationError: The credentials were rejected at login, or a region
-            rejected the JWT (HTTP 401/403).
-        TransportError: No devices were found and at least one region's request
-            failed, so discovery could not be completed.
+        AuthenticationError: The credentials were rejected at login, or every
+            region rejected the JWT (none failed transiently).
+        TransportError: No devices were found and at least one region failed
+            transiently, so discovery could not be completed. If some region
+            answered and none failed transiently, an empty list is returned.
 
     """
     gigya = GigyaAuth(session)
     credentials = await gigya.login(email, password)
     jwt = await gigya.get_jwt(credentials)
     found: list[DiscoveredDevice] = []
-    last_error: TransportError | None = None
+    errors: list[DelonghiComfortError] = []
     for region in SUPPORTED_REGIONS:
         try:
             # Fail fast per region: a rejected region should move on to the next,
             # not spend the transient-retry budget.
             devices = await async_get_devices(session, jwt, region, retries=1)
-        except TransportError as err:
+        except DelonghiComfortError as err:
             _LOGGER.debug("discovery: skipping region %s: %s", region, err)
-            last_error = err
+            errors.append(err)
             continue
         found.extend(
             DiscoveredDevice(device=device, region=region) for device in devices
         )
-    if not found and last_error is not None:
-        raise last_error
+    # An empty account answers 200 in one region and may 403 in another, so
+    # auth errors only raise when every region failed.
+    if not found and (
+        any(isinstance(e, TransportError) for e in errors)
+        or len(errors) == len(SUPPORTED_REGIONS)
+    ):
+        raise next((e for e in errors if isinstance(e, TransportError)), errors[-1])
     return credentials, found
